@@ -50,15 +50,14 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
-    <Compile Include="ChkLy.fs" />
-    <Compile Include="ChkLy2.fs" />
     <Compile Include="SqTp.fs" />
-    <Compile Include="PrmBk.fs" />
-    <Compile Include="SwBk.fs" />
-    <Compile Include="SqBk.fs" />
+    <Compile Include="SqTp1.Test.fs" />
     <Compile Include="SqTp.Test.fs" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Microsoft Visual Studio\Preview\Community\Common7\IDE\ReferenceAssemblies\v4.0\Microsoft.VisualStudio.QualityTools.UnitTestFramework.dll</HintPath>
+    </Reference>
     <Reference Include="mscorlib" />
     <Reference Include="FSharp.Core">
       <Name>FSharp.Core</Name>

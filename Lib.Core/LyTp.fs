@@ -1,38 +1,44 @@
-﻿namespace Lib.Core
-type LyBk(fstLinStr:string,ly:string[]) =
-    member x.ly = ly
-    member x.tp = ly |> jnSyCrLf |> addPfx fstLinStr
-    member x.fstLinStr = fstLinStr
-    new(lyBk:LyBk) = LyBk(lyBk.fstLinStr,lyBk.ly)
-module LyTp =
-    let ly'lyBk(linPfx:string)(ly:string[])=
+﻿namespace Lib.Tp
+open Lib.Core
+type LyBk = {fstLinStr:string;ly:string[]}
+type LyTp = {linPfx:string;tp:string}
+module internal LyBk =
+    let tp{fstLinStr=fstLinStr;ly=ly} = ly |> jnSyCrLf |> addPfx fstLinStr
+
+    let make(linPfx:string)(ly:string[])=
         let l0 = ly.[0]
         let withPfx = l0 |> hasPfx linPfx
         let fstLinStr = if withPfx then l0 + "\r\n" else ""
         let ly' = if withPfx then ayRmvFstEle ly else ly
-        LyBk(fstLinStr,ly')
+        {fstLinStr=fstLinStr;ly=ly'}
+module internal BkLy =
+    let lyBk linPfx bkLy = {fstLinStr="";ly=[||]}
 
-    let ly'llisLis linPfx ly =
+module internal LlisLis =
+    let rmvEmpLis = lisWh (List.isEmpty |> pNot)
+module internal TpLy =
+    let llisLis linPfx tpLy =
         let f (o,curLis) l = 
             if l |> hasPfx linPfx 
             then
                 o @ [curLis],[l]
             else
                 o,curLis @ [l]
-        let o,curLis = ly |> ayFold f ([],[]) 
+        let o,curLis = tpLy |> ayFold f ([],[]) 
         o @ [curLis]
-    let llisLis'rmvEmpLis = lisWh (List.isEmpty |> pNot)
-
-open LyTp
-type LyTp(linPfx:string,ly:string[]) =
-    let lyBkAy' = 
-        ly |> ly'llisLis linPfx
-           |> llisLis'rmvEmpLis
+    let lyBkAy (linPfx:string)(ly:string[]) :LyBk[] =
+        ly |> llisLis linPfx
+           |> LlisLis.rmvEmpLis
            |> List.map List.toArray
-           |> List.map (ly'lyBk linPfx)
+           |> List.map (BkLy.lyBk linPfx)
            |> List.toArray
-    new(linPfx,tp) = LyTp(linPfx,splitCrLf tp)
-    member x.tp = lyBkAy' |> ayMap(fun(i:LyBk)->i.tp) |> jnSyCrLf
-    member x.ly = ly
-    member x.linPfx = linPfx
-    member x.lyBkAy = lyBkAy'
+module internal LyBkAy =
+    let tp lyBkAy = lyBkAy |> ayMap LyBk.tp |> jnSyCrLf
+module internal Tp =
+    let lyBkAy linPfx tp = 
+        let ly = (tp|>splitCrLf)
+        TpLy.lyBkAy linPfx ly
+
+[<AutoOpen>]
+module Main =
+    let tpBrk(linPfx:string)(tp:string) : LyBk[] = Tp.lyBkAy linPfx tp

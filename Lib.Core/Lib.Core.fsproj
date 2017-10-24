@@ -53,14 +53,12 @@
   <ItemGroup>
     <Compile Include="Core.fs" />
     <Compile Include="LyTp.fs" />
+    <Compile Include="ChkLy.fs" />
     <None Include="Script.fsx" />
-    <Compile Include="main..fs" />
     <Content Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Compile Include="ChkLy.fs" />
-    <Compile Include="ChkLy1.fs" />
-    <Compile Include="ChkLy2.fs" />
+    <Compile Include="main..fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />

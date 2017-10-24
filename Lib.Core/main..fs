@@ -1,9 +1,11 @@
 ﻿module main
-open Lib.Core.LyTp
+open Lib.ChkLy
+open Lib
+open Lib.Core
 [<EntryPoint>]
 let main args = 
-    let x = 1
-    let x = 2
     0
+    
+
 
 

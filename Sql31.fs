@@ -1,7 +1,7 @@
 ﻿#nowarn "40" 
 #nowarn "64" 
-namespace Libr.SqTp
-open Libr
+namespace Lib.SqTp
+open Lib
 module IdxLin =
     type IdxLin = { linIdx: int; lin: string }
     type Rslt = { linIdx: int; msg: string }

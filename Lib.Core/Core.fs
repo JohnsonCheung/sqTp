@@ -1,6 +1,18 @@
 ﻿#nowarn "40"
 #nowarn "64"
 namespace Lib.Core
+type Doc = {doc:string; eg: (unit->string) list}
+[<AutoOpen>]
+module Itm =
+    let itmF _ = false
+    let itmT _ = true
+    let zip a b = a,b
+    let self itm = itm
+    let itmIfMap p f itm = if(p itm) then Some(f itm) else None
+    let itmIf c itm = if c then Some itm else None 
+    let inLis lis itm = List.contains itm lis
+    let inSeq  seq itm = Seq.contains  itm seq
+
 [<AutoOpen>]
 module Builder =
     type MayBeBuilder() = 
@@ -65,21 +77,21 @@ module Alias =
     let seqHas = List.contains
     let seqMap = Seq.map
     let setHas = Set.contains
+
 [<AutoOpen>]
-module Predict =
-    open Alias
-    let pAll pLis a = pLis |> lisAll (fun p -> p a)
-    let pAny pLis a = pLis |> lisAny (fun p -> p a)
-    let pAnd p1 p2 a = p1 a && p2 a
+module P =
     let pNot p a = p a |> not
+    let pVal v p = if p v then Some v else None
+    let pAll pLis a = pLis |> List.forall (fun p -> p a)
+    let pAny pLis a = pLis |> List.exists (fun p -> p a)
+    let pAnd p1 p2 a = p1 a && p2 a
     let pOr p1 p2 a = p1 a || p2 a
-    let T = eq true
-    let F = eq false
+    let pT = eq true
+    let pF = eq false
 
 [<AutoOpen>]
 module DtaFun =
     open Alias
-    open Predict
     let incr = (+)
     let decr n a = a - n
     /// if (c) then (f a) else (a)
@@ -90,7 +102,6 @@ module DtaFun =
 [<AutoOpen>]
 module StrHas =
     open Alias
-    open Predict
     let hasSs ss (s:string) = s.Contains ss
     let hasAnySs ssLis s    = ssLis |> lisAny (fun ss -> hasSs ss s)
     let hasLf               = hasSs "\n"
@@ -114,8 +125,7 @@ module Zip =
 [<AutoOpen>]
 module StrOp =
     open Microsoft.VisualBasic
-    open Predict
-    open StrHas
+     open StrHas
     let strEqIgnCas a b = System.String.Compare(a,b,true) = 0
     /// string eq ignorecase 
     let (=~) = strEqIgnCas
@@ -280,40 +290,39 @@ module Prt =
 [<AutoOpen>]
 module Vbl =
     type Vbl = Vbl of string
-    open Predict
     open StrHas
-    let isVbl = pAnd(pNot hasCr)(pNot hasLf) 
+    let isVbl = pAnd (pNot hasCr)(pNot hasLf) 
     let assertIsVbl s = if isVbl s|>not then failwith("s{"+s+"} is not a Vbl VBar-Line")
 
 [<AutoOpen>]
 module Opt =
     open Alias
+    let some a = Some a
+    let value(opt:'a option) = opt.Value
     let mkOpt opt itm = if opt then Some itm else None
     let isSome(a:'a option) = a.IsSome
     let isNone(a:'a option) = a.IsNone
-    let optVal(a:'a option) = a.Value
-    let some a = Some a
+    let dft dft opt = if isSome opt then value opt else dft
     /// return true if all elements of given {opy} isSome
     let opyAllSome ay = ay |> ayAll isSome
     let opyAnySome ay = ay |> ayAny isSome
     let opyAllNone ay = ay |> ayAll isNone
     let opyAnyNone ay = ay |> ayAny isNone
-    let optDo f opt = if isSome opt then f (optVal opt)
-    let optMap f opt = if isNone opt then None else Some (f (optVal opt))
-    let optMapDft f dft opt = if isNone opt then dft else f (optVal opt)
+    let optDo f opt = if isSome opt then f (value opt)
+    let optMap f opt = if isNone opt then None else Some (f (value opt))
+    let optMapDft f dft opt = if isNone opt then dft else f (value opt)
     let optDft dft (a:'a option) = if isSome a then a.Value else dft
     /// return {'a option[]} from {opy:'a option[]} for those element has value.
     let opyWhSome(opy:'a option[]) = opy |> ayWh isSome
     /// return {'a[]} from {opy:'a option[]} for those element has value.
-    let opyWhSomVal(opy:'a option[]):'a[] = opy|>opyWhSome|>ayMap optVal
+    let opyWhSomVal(opy:'a option[]):'a[] = opy|>opyWhSome|>ayMap value
 
 [<AutoOpen>]
 module AyWh =
     open Opt
-    open Predict
     open Alias
-    let ayWhByBoolAyForT boolAy ay = ayZip boolAy ay |> ayWh(fst>>T)
-    let ayWhByBoolAyForF boolAy ay = ayZip boolAy ay |> ayWh(fst>>F)
+    let ayWhByBoolAyForT boolAy ay = ayZip boolAy ay |> ayWh(fst>>pT)
+    let ayWhByBoolAyForF boolAy ay = ayZip boolAy ay |> ayWh(fst>>pF)
     let ayWhByOnyForNone ony ay = ayZip ony ay |> ayWh(fst>>isNone) |> ayMap snd
     let ayWhByOnyForSome ony ay = ayZip ony ay |> ayWh(fst>>isSome) |> ayMap snd
     let ayWhDup  ay = ay |> Array.countBy(fun a->a) |> ayChoose (fun(k,c) -> if(c>1) then Some k else None)
@@ -457,7 +466,6 @@ module Dic =
     let private s f ly = ly |> Array.fold f empSdic
     let sdicByLySkipDup = s f1
     let sdicByLy        = s f2
-
 [<AutoOpen>]
 module StrRpl =
     open Microsoft.VisualBasic
@@ -476,19 +484,6 @@ module Fmt =
     open Alias
     let fmtQQ qqStr (olis:obj list) = olis |>lisFold (fun o v->(rplOnce "?" (oToStr v) o)) qqStr
 
-[<AutoOpen>]
-module Dup =
-    open System.Linq
-    let seqDup(s:'a seq) =
-        query {
-            for i in s do
-            groupBy i into g
-            where (g.Count()>1)
-            select g.Key}
-    let seqDupSet(s:'a seq) = seqDup s |> Set<'a>
-    let seqDupMsg s = 
-        let dup = seqDupSet s
-        s |> seqMap (fun i -> if(dup|>setHas i) then Some(fmtQQ "dup(?)" [toStr i]) else None)
 
 [<AutoOpen>]
 module StrSplit =
@@ -541,7 +536,6 @@ module Rmk =
     open Alias
     open StrTak
     open StrHas
-    open Predict
     open StrOp
     let has2Dash   = hasSs "--"
     let has3Dash   = hasSs "---"
@@ -552,7 +546,7 @@ module Rmk =
     let rmv2DashRmk = rmvRmk "--"
     let syRmv3DashRmk = ayMap rmv3DashRmk
     let syRmv2DashRmk = ayMap rmv2DashRmk
-    let syRmvRmkLin          = ayWh isNonRmkLin
+    let syRmvRmkLin   = ayWh isNonRmkLin
     let syRmvEmpLin = ayWh (pNot isRmkLin)
 
 [<AutoOpen>]
@@ -602,7 +596,7 @@ module Wrt =
     open System.IO
     open Opt
     let wrtStr ft s = File.WriteAllText(ft,s)
-    let wrtStrOpt ft s' = if(isSome s') then wrtStr ft (optVal s')
+    let wrtStrOpt ft s' = if(isSome s') then wrtStr ft (Opt.value s')
     let wrtSy ft sy = File.WriteAllLines(ft,sy)
     let wrtAy ft ay  = ay |> ayToSy |> wrtSy ft
 
@@ -667,3 +661,87 @@ module Er =
             |> jnSyCrLf
         macroStr + "\r\n" + s
     let er macroStr olis = failwith (erLines macroStr olis)
+
+module OptSeq =
+    open System.Linq
+    let zip seq seq' = 
+        query {
+            for (seq,seq') in Seq.zip seq seq' do
+            where (isSome seq')
+            select (a,Opt.value seq')
+        } 
+    let lis lis lis' = 
+        query {
+            for (lis,lis') in List.zip lis lis' do
+            where (isSome lis')
+            select (lis, Opt.value lis')
+        } |> Seq.toList
+module OptLis =
+    open System.Linq
+    let zip lis lis' = 
+        query {
+            for (lis,lis') in List.zip lis lis' do
+            where (isSome lis')
+            select (lis,Opt.value lis')
+        } |> Seq.toList
+
+[<AutoOpen>]
+module AddIx =
+    let seqAddIx seq = seq |> Seq.mapi zip
+    let ayAddIx ay = ay |> Array.mapi zip
+    let lisAddIx lis = lis |> List.mapi zip
+
+[<AutoOpen>]
+module SeqUnzip =
+    let seqUnZip(seq:('a*'b) seq) = (seq |>Seq.map (fun(a:'a,_)->a)),(seq |>Seq.map(fun(_,b:'b)->b))
+
+[<AutoOpen>]
+module Dup =
+    open Convert
+    open System.Linq
+    let dupList lis = 
+        query {
+            for i in Queryable.AsQueryable(lis) do
+            groupBy i into g
+            where(g.Count()>1)
+            select g.Key } |> Seq.toList
+    let dupMsgLisByDup dup lis =
+        let dupMsg itm = sprintf "dup(%s)" (toStr itm)
+        let msgOpt = itmIfMap (inSeq dup) dupMsg
+        let o = lis |> List.map msgOpt
+        o
+    let dupMsgLis lis = dupMsgLisByDup (dupList lis) lis
+    let dupFstTermMsgLis lis = lis |> List.map fstTerm |> dupMsgLis
+    let doc'msglisByDup =
+        let doc = 
+            """
+msgOptOfDup'doc = {dup}      {seq}   :  {dupMsgOpt}
+                : seq<'a> -> seq<'a> -> string option list
+it is mapping of {seq} to some {dupMsgOpt} if {seq}-itm is found in {dup}
+"""
+        let eg0() =
+            let dup = ["aa";"bb"]
+            let lis = ["aa";"aa";"cc";"bb";"dd"]
+            Er.erLines doc [dup;lis;dupMsgLisByDup dup lis]
+        let eg = [eg0]
+        {doc=doc;eg=eg}
+    let doc'msgOpt =
+        let doc = """
+msgOpt = {linLis} : {msgOpt}
+       : 'a list -> string option list
+where the (output-list-item).Some is the er msg for dup item: in dup(?)
+ """
+        let eg0() = 
+            let tp = """
+xx bb cc
+aa bb
+cc dd
+aa dd
+cc dd
+ddd
+xxx
+cc  dd"""
+            let lis = splitCrLf tp |> ayToLis
+            erLines doc [lis; dupMsgLis lis]
+        let eg = [eg0]
+        {doc=doc; eg=eg}
