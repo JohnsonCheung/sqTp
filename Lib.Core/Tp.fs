@@ -1,7 +1,10 @@
 ﻿namespace Lib.Tp
 open Lib.Core
-type LyBk = {fstLinStr:string;ly:string[]}
-type LyTp = {linPfx:string;tp:string}
+[<AutoOpen>]
+module ZTyp =
+    type LyBk = {fstLinStr:string;ly:string[]}
+    type LyTp = {linPfx:string;tp:string}
+    let empLyBk = {fstLinStr="";ly=[||]}
 module internal LyBk =
     let tp{fstLinStr=fstLinStr;ly=ly} = ly |> jnSyCrLf |> addPfx fstLinStr
 
@@ -12,8 +15,13 @@ module internal LyBk =
         let ly' = if withPfx then ayRmvFstEle ly else ly
         {fstLinStr=fstLinStr;ly=ly'}
 module internal BkLy =
-    let lyBk linPfx bkLy = {fstLinStr="";ly=[||]}
-
+    let lyBk linPfx bkLy = 
+        if Array.isEmpty bkLy then empLyBk else
+            let l0 = bkLy.[0]
+            let fstLinStr =
+                if l0="" then "" else l0 + "\r\n"
+            let ly = Array.skip 1 bkLy
+            {fstLinStr=fstLinStr;ly=ly}
 module internal LlisLis =
     let rmvEmpLis = lisWh (List.isEmpty |> pNot)
 module internal TpLy =
@@ -26,12 +34,12 @@ module internal TpLy =
                 o,curLis @ [l]
         let o,curLis = tpLy |> ayFold f ([],[]) 
         o @ [curLis]
-    let lyBkAy (linPfx:string)(ly:string[]) :LyBk[] =
-        ly |> llisLis linPfx
-           |> LlisLis.rmvEmpLis
-           |> List.map List.toArray
-           |> List.map (BkLy.lyBk linPfx)
-           |> List.toArray
+    let lyBkAy linPfx tpLy :LyBk[] =
+        tpLy |> llisLis linPfx
+             |> LlisLis.rmvEmpLis
+             |> List.map List.toArray
+             |> List.map (BkLy.lyBk linPfx)
+             |> List.toArray
 module internal LyBkAy =
     let tp lyBkAy = lyBkAy |> ayMap LyBk.tp |> jnSyCrLf
 module internal Tp =
@@ -40,5 +48,5 @@ module internal Tp =
         TpLy.lyBkAy linPfx ly
 
 [<AutoOpen>]
-module Main =
+module AutoOpen =
     let tpBrk(linPfx:string)(tp:string) : LyBk[] = Tp.lyBkAy linPfx tp

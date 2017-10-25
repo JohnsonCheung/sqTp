@@ -7,30 +7,34 @@ module ZTyp =
     type IxMsg = { ix: int; msg: string }
 open ZTyp
 module IxMsg =
-    let ixEq ix {ix=ix';msg=_} = ix = ix'
-    let msg {ix=_;msg=msg} = msg
-    let pickMsg ( ix  : int )
-                ( lis : IxMsg list ) : string list =
-                lis |> List.where (ixEq ix)
-                    |> List.map msg
     let make(ix,msg) = {ix=ix;msg=msg}
-    let map2(lin,msgLis:string list) =
-        let h = msgLis |> List.tryHead 
-        let msg0 = h |> Opt.dft ""
-        let msg0 = if msg0="" then "" else "--- " + msg0
-        let lin0 = lin + " " + msg0
-        let s = spc ((len lin) + 1) + "--- "
-        let linRst = msgLis |> List.skip 1 |> List.map (addPfx s)
-        let lin = lin0::linRst
-        lin |> List.toArray |> jnSyCrLf
-    let map1 (ixMsg:IxMsg list) (ix,lin):string*string list = 
-        let msgLis = pickMsg ix ixMsg
-        lin,msgLis
     let put ly (ixMsg:IxMsg list) : string =
-        ly |> ayAddIx
-           |> Array.map (map1 ixMsg)
-           |> Array.map map2
-           |> jnSyCrLf
+        let ixEq ix {ix=ix';msg=_} = ix = ix'
+        let msg {ix=_;msg=msg} = msg
+        let pickMsg ( ix  : int )
+                    ( lis : IxMsg list ) : string list =
+                    lis |> List.where (ixEq ix)
+                        |> List.map msg
+        let map2(lin,msgLis:string list) =
+            let h = msgLis |> List.tryHead 
+            let msg0 = h |> Opt.dft ""
+            let msg0 = if msg0="" then "" else "--- " + msg0
+            let lin0 = lin + " " + msg0
+            let s = spc ((len lin) + 1) + "--- "
+            let linRst = 
+                if (List.length msgLis <= 1) then [] else
+                    msgLis |> List.skip 1 |> List.map (addPfx s)
+            let lin = lin0::linRst
+            lin |> List.toArray |> jnSyCrLf
+        let map1 (ix,lin):string*string list = 
+            let msgLis = pickMsg ix ixMsg
+            lin,msgLis
+        if List.isEmpty ixMsg then ly|>jnSyCrLf else
+            ly |> syAlignL
+               |> ayAddIx
+               |> Array.map map1 
+               |> Array.map map2
+               |> jnSyCrLf
 module ChkLinFun =
     let apply ixlisLinlis f = 
         let ixlis,linlis = ixlisLinlis
@@ -38,12 +42,18 @@ module ChkLinFun =
                |> OptLis.zip ixlis
                |> List.map IxMsg.make
 module ChkBkFun =
-    let apply ( ixlisLinlis : int list * string list            )
-              ( f           : string list -> string option list ) : IxMsg list = 
+    let apply ( ixlisLinlis : int list * string list       )
+              ( f           : string list -> string[] list ) : IxMsg list = 
         let ixlis,linlis = ixlisLinlis
-        linlis |> f
-               |> OptLis.zip ixlis
-               |> List.map IxMsg.make
+        let withMsg(_,msg:string[]) = Array.isEmpty msg |> not
+        let expand(ix,msg:string[]):IxMsg list = 
+            msg |> Array.map (fun msg-> {ix=ix;msg=msg}) 
+                |> ayToLis
+        let a = linlis |> f
+        let b = List.zip ixlis a
+        let c = b |> lisWh withMsg
+        let d = c |> lisMap expand |> List.concat
+        d 
 module IxLin =
     let skip   ( skiplinFun':(string->bool) option)
                ( ly                               ) : int list*string list =
@@ -58,19 +68,19 @@ module IxLin =
         flis |> List.map (ChkLinFun.apply ixlisLinlis) 
              |> List.concat 
 
-    let chkbk  ( flis        : (string list->string option list) list ) 
-               ( ixlisLinlis : int list * string list                 ) : IxMsg list = 
+    let chkbk  ( flis        : (string list->string[] list) list ) 
+               ( ixlisLinlis : int list * string list            ) : IxMsg list = 
         flis |> List.map (ChkBkFun.apply ixlisLinlis)
              |> List.concat
 
     let chkT1Dup ( ixlisLinlis : int list * string list ) : IxMsg list = 
-        chkbk [dupFstTermMsgLis] ixlisLinlis
+        chkbk [dupFstTermMsgAyLis] ixlisLinlis
 module Ly =
-    let chk(chklinFunlis  : (string      -> string option     ) list ) 
-           (chkbkFunlis   : (string list -> string option list) list )
-           (chkTermOneDup : bool                                     )
-           (skipLinFun'   : (string->bool) option                    )
-           (ly            : string[]                                 ) : bool*string =
+    let chk(chklinFunlis  : (string      -> string option) list ) 
+           (chkbkFunlis   : (string list -> string[] list) list )
+           (chkTermOneDup : bool                                )
+           (skipLinFun'   : (string->bool) option               )
+           (ly            : string[]                            ) : bool*string =
         let ly' = IxLin.skip skipLinFun' ly
         let r1 = ly' |> IxLin.chklin chklinFunlis
         let r2 = ly' |> IxLin.chkbk  chkbkFunlis
@@ -81,15 +91,15 @@ module Ly =
         let isEr = List.isEmpty r |> not
         isEr,newTp
 module Tp =
-    let chk(chklinFunlis  : (string      -> string option     ) list ) 
-           (chkbkFunlis   : (string list -> string option list) list )
-           (chkTermOneDup : bool                                     )
-           (skipLinFun'   : (string->bool) option                    )
-           (tp            : string                                   ) : bool*string =
+    let chk(chklinFunlis  : (string      -> string option) list ) 
+           (chkbkFunlis   : (string list -> string[] list) list )
+           (chkTermOneDup : bool                                )
+           (skipLinFun'   : (string->bool) option               )
+           (tp            : string                              ) : bool*string =
         Ly.chk(chklinFunlis)(chkbkFunlis)(chkTermOneDup)(skipLinFun')(splitCrLf tp)
     let tst() =
         let linF0 lin = Some lin
-        let bkF0 linlis = linlis |> List.map some
+        let bkF0 linlis = linlis |> List.map (fun lin -> [|lin;lin|])
         let bkFlis = [bkF0]
         let linFlis = [linF0]
         let tp = """klsdjflksdjf
@@ -98,9 +108,8 @@ bb sdfjlsdfk
 bb sldkfjsdlfksdf
 cc sdlkfdsfkldf"""
         chk linFlis bkFlis true None tp
-
 [<AutoOpen>]
-module Main =
+module AutoOpen =
     let tpChk = Tp.chk
     let lyChk = Ly.chk
         

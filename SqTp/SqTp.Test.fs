@@ -139,9 +139,9 @@ $Amt    Sum(Amt)
 """
 
 [<TestClass>]
-type VdtPrm() =
+type PrmLin() =
     [<TestMethod>]
-    member x.chkPrmLin() = 
+    member x.chk() = 
         let tst exp lin = 
             let act = PrmLin.chk lin
             Assert.AreEqual(exp,act)
@@ -183,48 +183,16 @@ type VdtPrm() =
         *)
         ()
 
-[<TestClass>] 
-type tst() = 
-    [<TestMethod>] 
-    member x.lyDupTermOneChk() =
-        let s = Some "dup(a)"
-        let n = None
-        let d0 = (0,[|s;s;n;n|],[|"a klsdfj lsdfk";"a slkdfj";"dkf";"lksdfjdf"|])
-        let d1 = (1,[|Some("dup(aaa)");n;Some("dup(aaa)")|], 
-                    [|
-                        "aaa sdklfsdklf"
-                        "aa sdklfjsdfkl"
-                        "aaa    sdklfdfk"
-                    |])
-        let d2 = (2,[|Some("dup()");Some("dup()");Some("dup()")|],[|"";"";""|])
-        let tstr(case,exp,ly) =
-            let run() = () // lyDupTermOneChk ly
-            let act = run()
-            let r = act = exp
-            if not r then 
-                prtLisNL["TstDta - ly\n";ly]
-                prtLisNL["Act\n";act]
-                prtLisNL["Exp\n";exp]
-            Assert.IsTrue r
-        //[d0;d1;d2] |> List.iter tstr
-        ()
-
-[<TestClass>] 
-type TpBk() = 
-    [<TestMethod>] 
-    member x.BkTyByLy() =
-        ()
-
  [<TestClass>] 
-type Main() = 
+type SqTp() = 
     [<TestMethod>] 
-    member x.sqTp'evl() =
-        let act = sqTp'evl aSqTp
+    member x.evl() =
+        let act = sqTpEvl aSqTp
         ()
 
 module main =
     open Prt
     [<EntryPointAttribute>]
     let main args =
-        sqTp'evl aSqTp |> toStr |> prtS
+        sqTpEvl aSqTp |> brwObj
         0

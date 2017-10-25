@@ -52,7 +52,7 @@
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
     <Compile Include="Core.fs" />
-    <Compile Include="LyTp.fs" />
+    <Compile Include="Tp.fs" />
     <Compile Include="ChkLy.fs" />
     <None Include="Script.fsx" />
     <Content Include="App.config">

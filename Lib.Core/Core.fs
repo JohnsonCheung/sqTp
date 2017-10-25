@@ -65,7 +65,7 @@ module Alias =
     let ayToLis = Array.toList
     let ayFold = Array.fold
     let ayHas = Array.contains
-    let listHas = List.contains
+    let lisHas = List.contains
     let lisChoose = List.choose
     let lisMap = List.map
     let lisMapi = List.mapi
@@ -298,24 +298,24 @@ module Vbl =
 module Opt =
     open Alias
     let some a = Some a
-    let value(opt:'a option) = opt.Value
+    let optVal(opt:'a option) = opt.Value
     let mkOpt opt itm = if opt then Some itm else None
     let isSome(a:'a option) = a.IsSome
     let isNone(a:'a option) = a.IsNone
-    let dft dft opt = if isSome opt then value opt else dft
+    let dft dft opt = if isSome opt then optVal opt else dft
     /// return true if all elements of given {opy} isSome
     let opyAllSome ay = ay |> ayAll isSome
     let opyAnySome ay = ay |> ayAny isSome
     let opyAllNone ay = ay |> ayAll isNone
     let opyAnyNone ay = ay |> ayAny isNone
-    let optDo f opt = if isSome opt then f (value opt)
-    let optMap f opt = if isNone opt then None else Some (f (value opt))
-    let optMapDft f dft opt = if isNone opt then dft else f (value opt)
+    let optDo f opt = if isSome opt then f (optVal opt)
+    let optMap f opt = if isNone opt then None else Some (f (optVal opt))
+    let optMapDft f dft opt = if isNone opt then dft else f (optVal opt)
     let optDft dft (a:'a option) = if isSome a then a.Value else dft
     /// return {'a option[]} from {opy:'a option[]} for those element has value.
     let opyWhSome(opy:'a option[]) = opy |> ayWh isSome
     /// return {'a[]} from {opy:'a option[]} for those element has value.
-    let opyWhSomVal(opy:'a option[]):'a[] = opy|>opyWhSome|>ayMap value
+    let opyWhSomVal(opy:'a option[]):'a[] = opy|>opyWhSome|>ayMap optVal
 
 [<AutoOpen>]
 module AyWh =
@@ -348,6 +348,7 @@ module Ay =
             groupBy i into g
             where (g.Count()>1)
             select g.Key}
+    let ayAddItm itm ay = Array.append [|itm|] ay
     let ayCut(fmIx,toIx)(ay:'a[]) = [|for i=fmIx to toIx do yield ay.[i]|]
     let ayFstEleOpt ay = if sz ay = 0 then None else Some(ay.[0])
     let ayFstEleDft dft = ayFstEleOpt >> optDft dft
@@ -366,6 +367,9 @@ module Ay =
     let ayRepeat n dft = seq {for j=1 to n do yield  dft} |> Seq.toArray
     let ayRmvFstEle ay = Array.skip 1 ay
     let ayRmvLasEle ay = Array.take (sz ay - 1) ay
+    let ayRmvDup ay =
+        let f o c = if (o|>ayHas c) then o else ayAddItm c o
+        ay |> Array.fold f [||]
     let ayRz n dft ay = 
         let s = sz ay
         if n = s then ay
@@ -461,6 +465,7 @@ module Dic =
     let dicVopt         k    (dic:Map<'k,'v>) = if dic.ContainsKey(k) then Some(dic.Item k) else None
     let dicAddKV        (k,v)(dic:Map<'k,'v>) = dic.Add(k,v)
     let dicAddKVSkipDupK(k,v)(dic:Map<'k,'v>) = if dic.ContainsKey(k) |> not then dic.Add(k,v) else dic
+    let dicHasKey k (dic:Map<string,'v>) = dic.ContainsKey(k) 
     let private f1 (d:Sdic) lin = dicAddKVSkipDupK(brk1Spc lin) d
     let private f2 (d:Sdic) lin = dicAddKV        (brk1Spc lin) d
     let private s f ly = ly |> Array.fold f empSdic
@@ -505,6 +510,7 @@ module Term =
     open StrOp
     open StrSplit
     let rmvFstTerm s = takBefSpcOrAll s |> ltrim
+    let rmv2Terms = rmvFstTerm >> rmvFstTerm
     let fstTerm = takBefSpcOrAll
     let sndTerm = takAftSpc >> fstTerm
     let shiftTerm s =(fstTerm s),(rmvFstTerm s)
@@ -596,7 +602,7 @@ module Wrt =
     open System.IO
     open Opt
     let wrtStr ft s = File.WriteAllText(ft,s)
-    let wrtStrOpt ft s' = if(isSome s') then wrtStr ft (Opt.value s')
+    let wrtStrOpt ft s' = if(isSome s') then wrtStr ft (optVal s')
     let wrtSy ft sy = File.WriteAllLines(ft,sy)
     let wrtAy ft ay  = ay |> ayToSy |> wrtSy ft
 
@@ -631,12 +637,12 @@ module MacroStr =
     open StrTak
     open Alias
     let macroStrToSy s = 
-        let sy = split "{" s
-        let sy1 = sy |> ayWh (fun i-> hasSs "}" i)
-        let sy2 = sy1 |> ayMap (fun i -> takBef "}" i)
-        let q = quote "{}"
-        sy2 |> ayMap q
-
+        let sy  = split "{" s
+        let sy1 = sy |> ayWh (hasSs "}")
+        let sy2 = sy1 |> ayMap (takBef "}")
+        let sy3 = sy2 |> ayRmvDup
+        let o   = sy3 |> ayMap (quote "{}")
+        o
 [<AutoOpen>]
 module Er =
     open Convert
@@ -668,13 +674,15 @@ module OptSeq =
         query {
             for (seq,seq') in Seq.zip seq seq' do
             where (isSome seq')
-            select (a,Opt.value seq')
-        } 
-    let lis lis lis' = 
+            select (seq,seq'.Value)
+        }
+module OptAy =
+    open System.Linq
+    let zip ay ay' =
         query {
-            for (lis,lis') in List.zip lis lis' do
-            where (isSome lis')
-            select (lis, Opt.value lis')
+            for (ay,ay') in Array.zip ay ay' do
+            where (isSome ay')
+            select (ay, ay'.Value)
         } |> Seq.toList
 module OptLis =
     open System.Linq
@@ -682,7 +690,7 @@ module OptLis =
         query {
             for (lis,lis') in List.zip lis lis' do
             where (isSome lis')
-            select (lis,Opt.value lis')
+            select (lis,lis'.Value)
         } |> Seq.toList
 
 [<AutoOpen>]
@@ -712,6 +720,9 @@ module Dup =
         o
     let dupMsgLis lis = dupMsgLisByDup (dupList lis) lis
     let dupFstTermMsgLis lis = lis |> List.map fstTerm |> dupMsgLis
+    let dupFstTermMsgAyLis(lis:string list) : string[] list=
+        let a = lis |> dupFstTermMsgLis
+        a |> List.map (fun(i:string option) -> if isSome i then [|i.Value|] else [||])
     let doc'msglisByDup =
         let doc = 
             """

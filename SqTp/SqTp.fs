@@ -9,9 +9,9 @@ module ZTyp =
     //------------------------------
     type SqTpRslt = { tp': string option; sq' : string option }
     //------------------------------
-    type TpBkTy = PrmBk|SwBk|SqBk|RmkBk|ErBk
+    type SqTpBkTy = PrmBk|SwBk|SqBk|RmkBk|ErBk
     type SqLinTy = Sel|SelDis|Upd|Set|Fm|Gp|Jn|Left|Wh|WhBet|WhLik|WhIn|And|AndBet|AndIn|AndLik
-    type TpBk = {ty:TpBkTy;lyBk:LyBk}
+    type SqTpBk = {ty:SqTpBkTy;lyBk:LyBk}
     //------------------------------
     type SwOp = AND | OR | EQ | NE
     type SwTerms = TermAy of string[] | T1T2 of string * string
@@ -49,7 +49,7 @@ module BoolTerm =
         | _ -> er "the given {boolTerm} must have pfx-? or pfx-%" [t]
 module BoolAy =
     let evl op boolAy =
-        let x1 f bool'Ay = if(opyAnyNone bool'Ay) then None else Some (bool'Ay |> f Opt.value )
+        let x1 f bool'Ay = if(opyAnyNone bool'Ay) then None else Some (bool'Ay |> f optVal )
         let andF = x1 ayAll
         let orF  = x1 ayAny
         let f = match op with
@@ -82,6 +82,8 @@ module SwTerms =
             if ay.Length = 0 then  failwith("sz of terms of EQ NE switch line should be 2, but now is [" + string (sz ay) + "]")
             SwTerms.T1T2(ay.[0],ay.[1])
 module SwLin =
+    let op = sndTerm >> enmTryParseI<SwOp>
+    let termAy = rmv2Terms >> splitLvs
     let evl prm sw swLin = 
         match swLin.terms with
         | SwTerms.T1T2(t1,t2) -> AndOrOpT1T2.evl prm sw (swLin.op) t1 t2
@@ -205,26 +207,29 @@ module PrmLin =
             let s = sndTerm lin
             if (s<>"0" && s<>"1") then return "for %?, 2nd term must be 0 or 1"
         }
-module TpBk =
-    let tyEq ty (tpBk:TpBk) = tpBk.ty = ty
+module Ly =
     let isSqLin  = fstTerm >> rmvPfx "?" >> isInLisI["drp";"sel";"seldis";"upd"]
     let isExprLin  = hasPfx "$"
-    let isRmkLy  = sz >> eq 0
-    let isPrmLy  = ayAll (hasPfx "%")
-    let isSwLy   = ayAll (hasPfx "?")
-    let isSqLy   = ayFstEleDft "" >> isSqLin
-    let ly'ty ly = 
+    let isRmk  = sz >> eq 0
+    let isPrm  = ayAll (hasPfx "%")
+    let isSw   = ayAll (hasPfx "?")
+    let isSq   = ayFstEleDft "" >> isSqLin
+    let sqTpBkTy ly = 
         oneOf {
             let ly = ly |> syRmvRmkLin
-            if isRmkLy ly then return RmkBk
-            if isSwLy ly then return SwBk
-            if isPrmLy ly then return PrmBk
-            if isSqLy ly then return SqBk
+            if isRmk ly then return RmkBk
+            if isSw ly then return SwBk
+            if isPrm ly then return PrmBk
+            if isSq ly then return SqBk
         } |> optDft ErBk
+module SqTpBk =
+    let tyEq ty (sqTpBk:SqTpBk) = sqTpBk.ty = ty
     let ly{ty=_;lyBk={fstLinStr=_;ly=ly}} = ly
     let isEr tpBk = tpBk |> ly |> ayAny has3Dash
-module SqTp =
-    let tpBkAy sqTp = [||]
+module LyBk =
+    let sqTpBk(lyBk:LyBk):SqTpBk =
+        let ty = Ly.sqTpBkTy lyBk.ly
+        {ty=ty;lyBk=lyBk}
 module SwLinBrkAy =
     let evl prm sw swLy =
         let b' = swLy |> ayMap (SwLin.evl prm sw)
@@ -234,17 +239,28 @@ module SwLinBrkAy =
         let kvAy = ayZip b' ky |> ayChoose (fun(b',k)->if(b'.IsSome) then Some(k,b'.Value) else None)
         let oSw = kvAy |> ayFold (fun(sw:Sw) kv -> sw.Add kv) sw
         oSwLy',oSw,oIsEvled
+module SwTermAy =
+    let chk_MustExist_in_Prm_or_Sw prm sw swTermAy : string[] = 
+        let f3 term : string option = 
+            match fstChr term with
+            | "?" -> if dicHasKey term sw then None else Some(fmtQQ "Term(?) not found in sw-dic" [term])
+            | "%" -> if hasPfx "%?" term |> not then None else 
+                        if dicHasKey term prm then None else Some(fmtQQ "Term(?) not found prm-dic" [term])
+            | _ -> Some (fmtQQ "Term(?) must started with ? or %" [term])
+        swTermAy |> ayMap f3  |> ayWh isSome |> ayMap optVal
+module SwLyChk =
+    let AndOrTerm_MustExist_in_Prm_or_Sw prm sw swLy : string[] list =
+        let f1 swLin : string[] = SwLin.termAy swLin |> SwTermAy.chk_MustExist_in_Prm_or_Sw prm sw
+        let f swLin :string[]= match SwLin.op swLin with Some AND | Some OR -> f1 swLin | _ -> [||]
+        swLy |> ayMap f |> Array.toList
+    let EqNeT1_MustExist_in_Prm_or_Sw prm sw swLy : string[] list = []
 module SwLy =
     let vdt(prm:Sdic) swLy:bool*string =
-        (*
-        let l = swLy |> IxLin.wh (pNot isRmkLin)
-        let r1 = l |> IxLin.chkSrcLin swL'chk
-        let r2 = l |> IxLin.chkSrcLin (chkSwLin1 prm)
-        let r3 = l |> IxLin.chkDupTermOne
-        let r = Array.concat[r1;r2;r3]
-        IxLin.srcPutRslt r swLy
-        *)
-        true,""
+        let chkLinFunLis =[]
+        let chkBkFunLis = []
+        let chkFstTermDup = true
+        let skipLinFun' = Some isRmkLin
+        lyChk chkLinFunLis chkBkFunLis chkFstTermDup skipLinFun' swLy
 
     let evl prm swLy =
         let swLinBrkAy = swLy |> ayMap SwLin.swLinBrk 
@@ -259,7 +275,6 @@ module SwLy =
         e2 swLinBrkAy empSw
 module PrmLy =
     open Lib.ChkLy
-   
     let vdt prmLy : bool*string =
         let chkLinFunLis = []
         let chkBkFunLis = []
@@ -269,9 +284,10 @@ module PrmLy =
         //let r = Array.concat[r1;r2]
         lyChk chkLinFunLis chkBkFunLis true skipLinFun' prmLy
     let evl prmLy = empPrm
-module TpBkAy =
-    let ly ty tpBkAy = [|""|]
-    let sqLyAy = ayWh (TpBk.tyEq SqBk) >> ayMap(TpBk.ly)
+module SqTpBkAy =
+    let lyAy ty = ayWh (SqTpBk.tyEq ty) >> ayMap(SqTpBk.ly)
+    let ly ty = lyAy ty >> ayFstEleDft [||]
+    let sqLyAy = lyAy SqBk
     let swLy  = ly SwBk
     let prmLy = ly PrmBk
     let vdt tpBkAy : bool*string option=
@@ -289,18 +305,20 @@ module TpBkAy =
         let sqLinesAy = tpBkAy |> sqLyAy |> ayMap (SqLy.evl prm sw) 
         let sqLines = sqLinesAy |> jnSyCrLf
         sqLines
-[<AutoOpen>]
-module A_Main =
-    let sqTp'evl tp = 
-        let tpBkAy = SqTp.tpBkAy tp
-        let isEr,tp' = TpBkAy.vdt tpBkAy
-        let sq' = if isEr then None else Some (TpBkAy.evl tpBkAy)
+module SqTp =
+    open Lib.Tp
+    let evl sqTp = 
+        let sqTpBkAy = sqTp |> tpBrk "==" |> ayMap LyBk.sqTpBk 
+        let isEr,tp' = SqTpBkAy.vdt sqTpBkAy
+        let sq' = if isEr then None else Some (SqTpBkAy.evl sqTpBkAy)
         optDo brwObj tp'
         { tp' = tp'; sq' = sq'}
+[<AutoOpen>]
+module A_Main =
+    let sqTpEvl sqTp = SqTp.evl sqTp
     let private rsltProcess (r:SqTpRslt) tpFt = 
         let sqFt = ffnRplExt ".sql" tpFt
         wrtStrOpt tpFt (r.sq')
         wrtStrOpt sqFt (r.tp')
         r
-    let sqTpFt'evl ft = ftStr ft |> sqTp'evl |> rsltProcess
- 
+    let sqTpFt'evl ft = ftStr ft |> sqTpEvl |> rsltProcess
