@@ -7,7 +7,6 @@ module ZTyp =
     let empLyBk = {fstLinStr="";ly=[||]}
 module internal LyBk =
     let tp{fstLinStr=fstLinStr;ly=ly} = ly |> jnSyCrLf |> addPfx fstLinStr
-
     let make(linPfx:string)(ly:string[])=
         let l0 = ly.[0]
         let withPfx = l0 |> hasPfx linPfx
