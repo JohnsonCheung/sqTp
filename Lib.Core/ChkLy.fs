@@ -3,16 +3,20 @@
 namespace Lib.ChkLy
 open Lib.Core
 module ZTyp =
-    type IxLin = { ix: int; lin: string }
-    type IxMsg = { ix: int; msg: string }
+    type ixLin = { ix: int; lin: string }
+    type ixMsg = { ix: int; msg: string }
+    type linChkr = string -> string option
+    type bkChkr = string[] -> string list[]
+    type linPred = string -> bool
+    type ixAyLy = int[] * string[]
 open ZTyp
-module IxMsg =
+module internal IxMsg =
     let make(ix,msg) = {ix=ix;msg=msg}
-    let put ly (ixMsg:IxMsg list) : string =
+    let put ly (ixMsg:ixMsg list) : string =
         let ixEq ix {ix=ix';msg=_} = ix = ix'
         let msg {ix=_;msg=msg} = msg
         let pickMsg ( ix  : int )
-                    ( lis : IxMsg list ) : string list =
+                    ( lis : ixMsg list ) : string list =
                     lis |> List.where (ixEq ix)
                         |> List.map msg
         let map2(lin,msgLis:string list) =
@@ -25,81 +29,75 @@ module IxMsg =
                 if (List.length msgLis <= 1) then [] else
                     msgLis |> List.skip 1 |> List.map (addPfx s)
             let lin = lin0::linRst
-            lin |> List.toArray |> jnSyCrLf
+            lin |> List.toArray |> jnCrLf
         let map1 (ix,lin):string*string list = 
             let msgLis = pickMsg ix ixMsg
             lin,msgLis
-        if List.isEmpty ixMsg then ly|>jnSyCrLf else
+        if List.isEmpty ixMsg then ly|>jnCrLf else
             ly |> syAlignL
                |> ayAddIx
                |> Array.map map1 
                |> Array.map map2
-               |> jnSyCrLf
-module ChkLinFun =
-    let apply ixlisLinlis f = 
-        let ixlis,linlis = ixlisLinlis
-        linlis |> List.map f
-               |> OptLis.zip ixlis
-               |> List.map IxMsg.make
-module ChkBkFun =
-    let apply ( ixlisLinlis : int list * string list       )
-              ( f           : string list -> string[] list ) : IxMsg list = 
-        let ixlis,linlis = ixlisLinlis
-        let withMsg(_,msg:string[]) = Array.isEmpty msg |> not
-        let expand(ix,msg:string[]):IxMsg list = 
-            msg |> Array.map (fun msg-> {ix=ix;msg=msg}) 
-                |> ayToLis
-        let a = linlis |> f
-        let b = List.zip ixlis a
-        let c = b |> lisWh withMsg
-        let d = c |> lisMap expand |> List.concat
-        d 
-module IxLin =
-    let skip   ( skiplinFun':(string->bool) option)
-               ( ly                               ) : int list*string list =
-        let p(_,lin) = if skiplinFun'.IsNone then true else (skiplinFun'.Value lin)
-        ly |> Array.toList 
-           |> lisAddIx 
-           |> List.where p 
-           |> List.unzip
-
-    let chklin ( flis        : (string -> string option) list)
-               ( ixlisLinlis : int list * string list        ) : IxMsg list = 
-        flis |> List.map (ChkLinFun.apply ixlisLinlis) 
-             |> List.concat 
-
-    let chkbk  ( flis        : (string list->string[] list) list ) 
-               ( ixlisLinlis : int list * string list            ) : IxMsg list = 
-        flis |> List.map (ChkBkFun.apply ixlisLinlis)
-             |> List.concat
-
-    let chkT1Dup ( ixlisLinlis : int list * string list ) : IxMsg list = 
-        chkbk [dupFstTermMsgAyLis] ixlisLinlis
-module Ly =
-    let chk(chklinFunlis  : (string      -> string option) list ) 
-           (chkbkFunlis   : (string list -> string[] list) list )
-           (chkTermOneDup : bool                                )
-           (skipLinFun'   : (string->bool) option               )
-           (ly            : string[]                            ) : bool*string =
-        let ly' = IxLin.skip skipLinFun' ly
-        let r1 = ly' |> IxLin.chklin chklinFunlis
-        let r2 = ly' |> IxLin.chkbk  chkbkFunlis
+               |> jnCrLf
+module internal ChkLinFun =
+    let apply ixAyLy (f:linChkr) : ixMsg list = 
+        let ixAy,ly = ixAyLy
+        ly |> ayMap f |> OptAy.zip ixAy |> ayMap(IxMsg.make) |> ayToLis
+module internal ChkBkFun =
+    let apply ( ixAyLy : ixAyLy )
+              ( f      : bkChkr ) : ixMsg list = 
+        let ixAy,ly = ixAyLy
+        let withMsg(_,msgLis) = List.isEmpty msgLis |> not
+        let expand(ix,msgLis) = msgLis |> lisMap (fun msg-> {ix=ix;msg=msg}) 
+        let a = ly |> f             // string list []         
+        let b = Array.zip ixAy a    // (int * string list) [] 
+        let c = b |> ayWh withMsg   // (int * string list) [] 
+        let d = c |> ayMap expand   // (ixMsg list) []        
+        let e = d |> List.concat
+        e
+    let ofChkDup = syFstTermDupMsg >> ayMap optToLisOfOneEle
+module internal IxLin =
+    let skip   ( skiplinFunOpt:linPred option)
+               ( ly                        ) : int[]*string[] =
+        let p(_,lin) = if skiplinFunOpt.IsNone then true else (skiplinFunOpt.Value lin |> not)
+        ly |> ayAddIx
+           |> ayWh p 
+           |> Array.unzip
+    let chklin(flis:linChkr list)(ixAyLy:ixAyLy):ixMsg list =
+        flis |> lisMap (ChkLinFun.apply ixAyLy) |> List.concat
+    let chkbk  ( flis   : bkChkr list ) 
+               ( ixAyLy : ixAyLy        ) : ixMsg list = 
+        flis |> lisMap(ChkBkFun.apply ixAyLy) |> List.concat
+    let chkT1Dup ( ixAyLy : ixAyLy) : ixMsg list = 
+        chkbk [ChkBkFun.ofChkDup] ixAyLy
+module internal Ly =
+    let chk(linChkrLis:linChkr list)(bkChkrLis:bkChkr list)(chkTermOneDup:bool)(skipLinFunOpt:linPred option)(ly:string[]) : bool*string =
+        if ayFstEleOpt ly=Some "?LvlY    EQ %SumLvl Y" then
+            ()
+        else
+            ()
+        let ly' = IxLin.skip skipLinFunOpt ly
+        let r1 = ly' |> IxLin.chklin linChkrLis
+        let r2 = ly' |> IxLin.chkbk bkChkrLis
         let r3 = if chkTermOneDup then ly' |> IxLin.chkT1Dup else []
-        let r = r1@r2@r3
+        let r = r1 @ r2 @ r3
         let newTp = IxMsg.put ly r
-        let clnTp = ly |> syRmv3DashRmk |> syRmvEmpLin |> jnSyCrLf
+        let clnTp = ly |> syRmv3DashRmk |> syRmvEmpLin |> jnCrLf
         let isEr = List.isEmpty r |> not
         isEr,newTp
-module Tp =
-    let chk(chklinFunlis  : (string      -> string option) list ) 
-           (chkbkFunlis   : (string list -> string[] list) list )
-           (chkTermOneDup : bool                                )
-           (skipLinFun'   : (string->bool) option               )
-           (tp            : string                              ) : bool*string =
-        Ly.chk(chklinFunlis)(chkbkFunlis)(chkTermOneDup)(skipLinFun')(splitCrLf tp)
+module internal Tp =
+    let chk(chklinLis  : linChkr list )
+           (chkbkLis   : bkChkr list  )
+           (chkTermOneDup : bool           )
+           (skipLinFun'   : linPred option )
+           (tp            : string         ) : bool*string =
+        Ly.chk(chklinLis)(chkbkLis)(chkTermOneDup)(skipLinFun')(splitCrLf tp)
     let tst() =
         let linF0 lin = Some lin
-        let bkF0 linlis = linlis |> List.map (fun lin -> [|lin;lin|])
+        let bkF0 ly = 
+            let o  =ly |> Array.map (fun lin -> [lin;lin])
+            if Array.length ly <> Array.length o then failwith "stop"
+            o
         let bkFlis = [bkF0]
         let linFlis = [linF0]
         let tp = """klsdjflksdjf
@@ -109,7 +107,8 @@ bb sldkfjsdlfksdf
 cc sdlkfdsfkldf"""
         chk linFlis bkFlis true None tp
 [<AutoOpen>]
-module AutoOpen =
+module ChkLy =
     let tpChk = Tp.chk
     let lyChk = Ly.chk
+    let tst = Tp.tst
         

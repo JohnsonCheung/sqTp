@@ -2,16 +2,32 @@
 #nowarn "64"
 namespace Lib.Core
 type Doc = {doc:string; eg: (unit->string) list}
+open System.Linq
+open Microsoft.VisualBasic
+open System.IO
+open System
+[<AutoOpen>]
+module Turn = 
+    let turnNone () = None
+    let turnT() = true
+    let turnF() = false
+    let turnSelf itm () = itm
+    let turnNothing() = ()
 [<AutoOpen>]
 module Itm =
-    let itmF _ = false
     let itmT _ = true
+    let itmF _ = false
+    let itmSelf(itm:'a):'a = itm
+    let itmNone _ = None
+    let itmMap(f:'a->'b)(itm:'a) = f itm
+    let itmDo(act:'a->unit)(itm:'a) = act itm
+    let itmNothing _ = ()
     let zip a b = a,b
-    let self itm = itm
-    let itmIfMap p f itm = if(p itm) then Some(f itm) else None
-    let itmIf c itm = if c then Some itm else None 
+    let itmSome  p itm     = if(p itm) then Some itm else None
+    let itmIf    p t f itm = if(p itm) then t() else f() 
+    let itmIfMap p t f itm = if(p itm) then t itm else f itm
     let inLis lis itm = List.contains itm lis
-    let inSeq  seq itm = Seq.contains  itm seq
+    let inSeq  seq itm = Seq.contains itm seq
 
 [<AutoOpen>]
 module Builder =
@@ -22,15 +38,19 @@ module Builder =
         member x.Delay f = f()
     type AllBuilder()   = member x.Return m = m; member x.Zero() = true;  member x.Combine(a,b) = if(a) then true else b; member x.Delay(f) = f()
     type AnyBuilder()   = member x.Return m = m; member x.Zero() = false; member x.Combine(a,b) = if(a)then true else b; member x.Delay(f) = f()
-    type OneOfBuilder() = class
+    type OneOfBuilder() = 
         member x.Zero() = None
-        member x.Return(m) = Some m
-        member x.ReturnFrom = None
-        member x.Combine(a,b) = match a with 
-                                | None -> b 
-                                | _ -> a
+        member x.Return m = Some m
+        member x.ReturnFrom _ = None
+        member x.Combine(a,b) = match a with None -> b | _ -> a
         member x.Delay(f) = f()
-        end
+    type ShortCutBuilder() = 
+        member x.Zero() = None
+        member x.Return m = Some m
+        member x.ReturnFrom _ = Some None
+        member x.Combine(a,b) = match a with None -> b | _ -> a
+        member x.Delay(f) = f()
+    let shortCut = ShortCutBuilder()
     let oneOf = OneOfBuilder()
     let mayBe = MayBeBuilder()
     let all   = AllBuilder()
@@ -38,10 +58,8 @@ module Builder =
 
 [<AutoOpen>]
 module Shell =
-    open Microsoft.VisualBasic
     type sty = AppWinStyle
     let shell cmd (sty:sty) = Interaction.Shell(cmd,sty,false,-1) |> ignore
-
 [<AutoOpen>]
 module Alias = 
     let gt = (>)
@@ -74,6 +92,7 @@ module Alias =
     let lisAny  = List.exists 
     let lisToAy = List.toArray
     let lisFold = List.fold
+    let lisDup = List.replicate
     let seqHas = List.contains
     let seqMap = Seq.map
     let setHas = Set.contains
@@ -91,7 +110,6 @@ module P =
 
 [<AutoOpen>]
 module DtaFun =
-    open Alias
     let incr = (+)
     let decr n a = a - n
     /// if (c) then (f a) else (a)
@@ -101,7 +119,6 @@ module DtaFun =
 
 [<AutoOpen>]
 module StrHas =
-    open Alias
     let hasSs ss (s:string) = s.Contains ss
     let hasAnySs ssLis s    = ssLis |> lisAny (fun ss -> hasSs ss s)
     let hasLf               = hasSs "\n"
@@ -124,11 +141,10 @@ module Zip =
 
 [<AutoOpen>]
 module StrOp =
-    open Microsoft.VisualBasic
-     open StrHas
     let strEqIgnCas a b = System.String.Compare(a,b,true) = 0
     /// string eq ignorecase 
     let (=~) = strEqIgnCas
+    let strDup n (s:string)  = Strings.StrDup(n,s)
     let left  len s          = Strings.Left(s,len)
     let right len s          = Strings.Right(s,len)
     let len    (s:string)    = Strings.Len(s)
@@ -142,7 +158,10 @@ module StrOp =
     let posFm  fm ss s       = Strings.InStr(fm,s,ss,CompareMethod.Binary)
     let spc    nSpc          = Strings.Space nSpc    
     let fstChr = left 1
+    let toBool s = if s="1" then true else let a,b = (System.Boolean.TryParse s) in a||b
     let lasChr = right 1
+    let rmvFstChr = midFm 1
+    let rmvLasChr s = left (len s - 1) s
     let alignL w s = let l = len s in if w >= l then s + spc (w - l) else (left(w-2) s) + ".."
     let isBlankStr (s:string)   = s.Trim() = ""
     let isEmpStr                = pOr (System.String.IsNullOrEmpty) isBlankStr //' not(trim s) match "\S+") 
@@ -153,12 +172,11 @@ module StrOp =
 
 [<AutoOpen>]
 module StrBrk = 
-    open StrOp
     let brkAt pos sepLen s  = 
         let s1 = s |> left pos |> trim
         let s2 = s |> midFm (pos+sepLen) |> trim
         s1,s2
-    let private er sep s  = failwith("no sep{" + sep + "} in s{" + s + "}")
+    let private er sep s  = failwith("no sep[" + sep + "] in s[" + s + "]")
 
     let b1 fPos sep s = 
         let p = fPos sep s in 
@@ -181,7 +199,6 @@ module StrBrk =
 
 [<AutoOpen>]
 module StrTak =
-    open StrBrk
     let takAft          sep = brk  sep >> snd
     let takAftOrAll     sep = brk1 sep >> snd
     let takAftOrNone    sep = brk2 sep >> snd
@@ -216,7 +233,6 @@ module StrTak =
 
 [<AutoOpen>]
 module Quote =
-    open StrOp
     let brkQuote q =
         match len q with
         | 1 -> q,q
@@ -234,7 +250,6 @@ module Quote =
 
 [<AutoOpen>]
 module Convert =
-    open Alias
     let oToStr(o:obj):string = sprintf "%A" o
     let toStr(a:'a):string = box a |> oToStr
     let seqToOlis seq   = [ for i in seq -> box i]
@@ -247,41 +262,32 @@ module Convert =
 
 [<AutoOpen>]
 module Jn =
-    open Microsoft.VisualBasic
-    open Convert
-    open Alias
+    let jn sep (sy:string[]) = Strings.Join(sy,sep)
+    let jnCrLf               = jn "\r\n"
+    let jnDbCrLf             = jn "\r\n\r\n"
+    let jnSpc                = jn " " 
+    let jnComma              = jn ", "
 
-    let jnSy sep (sy:string[]) = Strings.Join(sy,sep)
-    let jnSyCrLf               = jnSy "\r\n"
-    let jnSyDblCrLf            = jnSy "\r\n\r\n"
-    let jnSySpc                = jnSy " " 
-    let jnAy sep   = oyToSy >> jnSy sep
-
-    let jnSlis sep = lisToAy >> jnSy sep
+    let jnAy sep   = oyToSy >> jn sep
+    let jnSlis sep = lisToAy >> jn sep
     let jnSlisCrLf  = jnSlis "\r\n"
     let jnLis sep (lis) = lis |> lisToSlis |> jnSlis sep
 
 [<AutoOpen>]
 module Enm = 
-    open Jn
-    open Alias
-    open System
-    open Quote
-    let private x<'a> ignoreCase s = Enum.Parse(typeof<'a>,s,ignoreCase) :?> 'a
-    let private y<'a> ignoreCase s =         
-        try 
-            Some (x<'a> ignoreCase s)
-        finally
-            None
+    let private x<'a> ignoreCase s = 
+        let t = typeof<'a>
+        if not t.IsEnum then failwithf  "The typeof<'a>-{%s} is not Enum, so cannot parse for s-{%s}" t.Name s
+        Enum.Parse(typeof<'a>,s,ignoreCase) :?> 'a
+    let private y<'a> ignoreCase s = try Some(x<'a> ignoreCase s) with _ -> None
     let enmParse<'a> s  = x<'a> false s
     let enmParseI<'a> s = x<'a> true s
     let enmTryParse<'a> s  = y<'a> false s
     let enmTryParseI<'a> s = y<'a> true s
-    let enm'str<'a>() = Enum.GetNames typeof<'a> |> aySrt |> jnSy " | " |> quote "[]"
+    let enm'str<'a>() = Enum.GetNames typeof<'a> |> aySrt |> jn " | " |> quote "[]"
 
 [<AutoOpen>]
 module Prt = 
-    open Convert
     let prtS (s:string) = System.Console.Out.Write(s)
     let prtLis(lis:'a list) = lis |> lisToSlis |> List.iter prtS
     let prtNL() = System.Console.Out.WriteLine()
@@ -290,37 +296,44 @@ module Prt =
 [<AutoOpen>]
 module Vbl =
     type Vbl = Vbl of string
-    open StrHas
     let isVbl = pAnd (pNot hasCr)(pNot hasLf) 
     let assertIsVbl s = if isVbl s|>not then failwith("s{"+s+"} is not a Vbl VBar-Line")
 
 [<AutoOpen>]
 module Opt =
-    open Alias
+    let mkOpt c itm = if c then Some itm else None
     let some a = Some a
     let optVal(opt:'a option) = opt.Value
-    let mkOpt opt itm = if opt then Some itm else None
     let isSome(a:'a option) = a.IsSome
     let isNone(a:'a option) = a.IsNone
-    let dft dft opt = if isSome opt then optVal opt else dft
+
+    let optToLisOfOneEle a = if isSome a then [a.Value] else []
+    let optToAyOfOneEle  a = if isSome a then [|a.Value|] else [||]
+
+    /// do {act} if is some else doNothing
+    let optDo     act a' = if isSome a' then act() else ()
+    let optDoSelf act a' = if isSome a' then act a' else ()
+
+    /// apply f to a.Value if Some
+    let optMap f        a' = if isSome a' then a'|>optVal|>f|>some else None
+    let optDftMap dft f a' = if isSome a' then a'|>optVal|>f else dft
+    let optDft dft      a' = if isSome a' then optVal a' else dft
+    let dft                = optDft
+    
+    /// return {'a option[]} from {opy:'a option[]} for those element has value.
+    let opyWhSome opy = opy |> ayWh isSome
+
+    /// return {'a[]} from {opy:'a option[]} for those element has value.
+    let opyWhSomVal opy = opy|>opyWhSome|>ayMap optVal
+
     /// return true if all elements of given {opy} isSome
     let opyAllSome ay = ay |> ayAll isSome
     let opyAnySome ay = ay |> ayAny isSome
     let opyAllNone ay = ay |> ayAll isNone
     let opyAnyNone ay = ay |> ayAny isNone
-    let optDo f opt = if isSome opt then f (optVal opt)
-    let optMap f opt = if isNone opt then None else Some (f (optVal opt))
-    let optMapDft f dft opt = if isNone opt then dft else f (optVal opt)
-    let optDft dft (a:'a option) = if isSome a then a.Value else dft
-    /// return {'a option[]} from {opy:'a option[]} for those element has value.
-    let opyWhSome(opy:'a option[]) = opy |> ayWh isSome
-    /// return {'a[]} from {opy:'a option[]} for those element has value.
-    let opyWhSomVal(opy:'a option[]):'a[] = opy|>opyWhSome|>ayMap optVal
 
 [<AutoOpen>]
 module AyWh =
-    open Opt
-    open Alias
     let ayWhByBoolAyForT boolAy ay = ayZip boolAy ay |> ayWh(fst>>pT)
     let ayWhByBoolAyForF boolAy ay = ayZip boolAy ay |> ayWh(fst>>pF)
     let ayWhByOnyForNone ony ay = ayZip ony ay |> ayWh(fst>>isNone) |> ayMap snd
@@ -329,18 +342,11 @@ module AyWh =
 
 [<AutoOpen>]
 module Ay =
-    open Zip
-    open Convert
-    open StrOp
-    open Opt
-    open Alias
-    open System.Linq
     let empSy = Array.empty<string>
     let sz (ay:'a[]) = ay.Length 
     let ub ay        = (sz ay) - 1
+    let isInAyI ay a = ay |> ayAny(strEqIgnCas a)
     let isInAy ay a = ay |> ayAny(eq a)
-    type aa ={aa:string; bb:string; cc:string}
-    let a: System.Linq.IGrouping<string,int> = null
     let ayDupMsg ay=()
     let ayDup(ay:'a[]) = 
         query { 
@@ -348,7 +354,7 @@ module Ay =
             groupBy i into g
             where (g.Count()>1)
             select g.Key}
-    let ayAddItm itm ay = Array.append [|itm|] ay
+    let ayAddItm itm ay = Array.append ay [|itm|]
     let ayCut(fmIx,toIx)(ay:'a[]) = [|for i=fmIx to toIx do yield ay.[i]|]
     let ayFstEleOpt ay = if sz ay = 0 then None else Some(ay.[0])
     let ayFstEleDft dft = ayFstEleOpt >> optDft dft
@@ -358,6 +364,11 @@ module Ay =
     let ayAddIdx(ay:'a[]) = ayMapi zip ay
     let ayAdj f n ay = ayMapi (fun itm i-> if i=n then f itm else itm)
     let ayIns(i:'a)(ay:'a[]) = ([i]@(Array.toList ay)) |> Array.ofList
+    let ayInsBef(bef:int)(i:'a[])(ay:'a[]) =
+        let lisBrkBef bef lis = List.take bef lis,List.skip bef lis
+        let p1,p2=lisBrkBef bef (ayToLis ay)
+        let lis = p1@(ayToLis i)@p2
+        lis |> Array.ofList
     let ayZipF f ay1 ay2 = ayZip ay1 ay2 |> ayMap (zipF f)
     let ayShift(ay:'a[]) = if(sz ay)=0 then None,ay else (Some ay.[0]),Array.skip 1 ay
     let ayIdx itm = Array.findIndex (eq itm)
@@ -377,37 +388,34 @@ module Ay =
             match n > s with
             | true -> ayAdd ay (ayRepeat (n-s) dft)
             | false -> Array.take (s-n) ay
-    let syShift(sy:string[]) = let a0,sy1 = ayShift sy in optDft "" a0, sy1
+    let syShift sy = let a0,sy1 = ayShift sy in (dft "" a0), sy1
     let syWdt sy = sy |> ayMap len |> ayMax 
     let syAlignL'w w sy = sy |> ayMap (alignL w)
     let syAlignL sy = sy |> syAlignL'w (syWdt sy)
     let syRTrim = ayMap rtrim
     let syLTrim = ayMap ltrim
     let syTrim  = ayMap trim
+    let syQuote q = ayMap (quote q)
 
 [<AutoOpen>]
 module Function =
-    open Microsoft.VisualBasic
+    let tee f a = f a; a
     let msgOk msg = Interaction.MsgBox(msg,MsgBoxStyle.OkOnly) |> ignore
-    let fSwapPrm (f:'a->'b->'c)  = fun (b:'b)(a:'a) -> f a b
+    let swapPrm (f:'a->'b->'c)  = fun (b:'b)(a:'a) -> f a b
 
 [<AutoOpen>]
 module FtRead =
-    open System.IO
     let ftLy  = File.ReadAllLines 
     let ftStr = File.ReadAllText
 
 [<AutoOpen>]
 module OpnFil =
-    open System.IO
     let opnAppFt = File.AppendText
     let opnFt    = File.OpenText
     let opnWrtFt ft = new System.IO.StreamWriter(File.OpenWrite ft)
 
 [<AutoOpen>]
 module PfxSfx =
-    open StrOp
-    open Alias
     let takFrontSpc (s:string) = s.ToCharArray() |> Array.findIndex (fun c -> c<>' ') |> spc
     let takPfx = len>>left
     let takSfx = len>>right
@@ -433,24 +441,22 @@ module PfxSfx =
         if (len pfx) > (len frontSpc) 
         then pfx + " " + ltrim(s)
         else alignL (len frontSpc) pfx + trim(s)
+    let syPfxCnt pfx ly =
+        let f (c1,c2) lin = if lin |> hasPfx pfx then c1+1,c2 else c1,c2+2
+        ly |> Array.fold f (0,0)
 
 [<AutoOpen>]
 module Pth =
-    open System.IO
-    open PfxSfx
-    open Jn
     let isPthExist pth = System.IO.Directory.Exists(pth)
     let pthCrt     pth = System.IO.Directory.CreateDirectory(pth) |> ignore
     let pthEns     pth = if(not(isPthExist pth)) then pthCrt pth
     let pthSep         = Path.DirectorySeparatorChar.ToString()
     let pthRmvSfx      = rmvSfx pthSep
     let jnPthSeqLis pthSegLis = (pthSegLis |> List.map pthRmvSfx |> jnSlis pthSep)  +  pthSep
+    let curPth = System.AppDomain.CurrentDomain.BaseDirectory
 
 [<AutoOpen>]
 module Ffn =
-    open Pth
-    open StrOp
-    open StrTak
     let ffnExt ffn = let p = posRev "."    ffn in if(p=0) then ""  else midFm p ffn
     let ffnFn  ffn = let p = posRev pthSep ffn in if(p=0) then ffn else midFm (p+1) ffn
     let ffnPth ffn = let p = posRev pthSep ffn in if(p=0) then ""  else left p ffn
@@ -459,7 +465,6 @@ module Ffn =
 
 [<AutoOpen>]
 module Dic =
-    open StrBrk
     type Sdic = Map<string,string>
     let empSdic = Map.empty<string,string>
     let dicVopt         k    (dic:Map<'k,'v>) = if dic.ContainsKey(k) then Some(dic.Item k) else None
@@ -473,10 +478,6 @@ module Dic =
     let sdicByLy        = s f2
 [<AutoOpen>]
 module StrRpl =
-    open Microsoft.VisualBasic
-    open StrTak
-    open StrOp
-    open StrHas
     let rpl ss by s = Strings.Replace(s,ss,by)
     let rplOnce ss by s = Strings.Replace(s,ss,by,Count=1)
     let rplDblSpc s = let rec r s = if (hasDblSpc s) then r (rpl "  " " " s) else s in r s
@@ -484,17 +485,10 @@ module StrRpl =
 
 [<AutoOpen>]
 module Fmt =
-    open StrRpl
-    open Convert
-    open Alias
     let fmtQQ qqStr (olis:obj list) = olis |>lisFold (fun o v->(rplOnce "?" (oToStr v) o)) qqStr
-
 
 [<AutoOpen>]
 module StrSplit =
-    open StrRpl
-    open StrOp
-    open Microsoft.VisualBasic
     let split sep s     = Strings.Split(s,sep)
     let splitCrLf = split "\r\n"
     let splitLf = split "\r\n"
@@ -504,21 +498,19 @@ module StrSplit =
 
 [<AutoOpen>]
 module Term =
-    open Ay
-    open AyWh
-    open StrTak
-    open StrOp
-    open StrSplit
-    let rmvFstTerm s = takBefSpcOrAll s |> ltrim
+    let rmvFstTerm s = takAftSpcOrAll s |> ltrim
     let rmv2Terms = rmvFstTerm >> rmvFstTerm
-    let fstTerm = takBefSpcOrAll
-    let sndTerm = takAftSpc >> fstTerm
+    let fstTerm = ltrim >> takBefSpcOrAll
+    let sndTerm = takAftSpcOrAll >> fstTerm
     let shiftTerm s =(fstTerm s),(rmvFstTerm s)
-    let brkNTerm'f (lis,s) _ = let t,s=shiftTerm s in if(isEmpStr t) then lis,s else lis@[t],s
-    let brkNTerm atMost s    = seq {1..atMost} |> Seq.fold brkNTerm'f ([],s) |> fst |> List.toArray
-    let brk3Term    = brkNTerm 3
-    let brk2Term    = brkNTerm 2
-    let isNterm n s = (brkNTerm (n+1) s |> sz) = n
+    let brkNTerm'f (lis,s) _ = let t,s = shiftTerm s in if(isEmpStr t) then lis,s else lis@[t],s
+    let brkNTerm atMost s    = let lis,s = {2..atMost} |> Seq.fold brkNTerm'f ([],s) in lis@[s]
+    let brk3Term s  = 
+        let a = brkNTerm 3 s |> lisToAy
+        let a = ayRz 3 "" a
+        a.[0],a.[1],a.[2]
+    let brk2Term s  = let a = brkNTerm 2 s in a.[0],a.[1]
+    let isNterm n s = (brkNTerm (n+1) s |> List.length) = n
     let is1term     = isNterm 1
     let is2term     = isNterm 2
     let is3Term     = isNterm 3
@@ -526,10 +518,6 @@ module Term =
 
 [<AutoOpen>]
 module DupFstTerm =
-    open Term
-    open Alias
-    open AyWh
-    open Ay
     let lyFstTermDupAy ly = ly |> ayMap fstTerm |> ayWhDup
     let lyFstTermDupIdxAy ly = 
         let f = ly |> ayMap fstTerm 
@@ -539,10 +527,6 @@ module DupFstTerm =
 
 [<AutoOpen>]
 module Rmk =
-    open Alias
-    open StrTak
-    open StrHas
-    open StrOp
     let has2Dash   = hasSs "--"
     let has3Dash   = hasSs "---"
     let isRmkLin    = pOr isEmpStr has2Dash
@@ -557,9 +541,12 @@ module Rmk =
 
 [<AutoOpen>]
 module Lis =
-    open Alias
-    open StrOp
-    open PfxSfx
+    let lisRz n dft lis =
+        let sz = List.length lis
+        if sz = n then lis else
+            match sz > n with
+            | true -> List.take sz lis
+            | false -> lis@(lisDup (n-sz) dft)
     let empSlis = List.empty<string>
     let olis(objLis:obj list) = objLis
     let isInLis(lis:'a list when 'a : equality) a = lis |> lisAny(eq a)
@@ -573,21 +560,14 @@ module LisWh =
 
 [<AutoOpen>]
 module Tab =
-    open StrOp
-    open Jn
-    open PfxSfx
-    open StrSplit
-    open Ay
     let syTab pfx nSpc sy = 
         let sy = sy |> syAddPfx (spc nSpc)
         if(sz sy > 0) then sy.[0] <- rplPfx pfx (sy.[0])
         sy
-    let linesTab pfx nSpc = splitCrLf >> syTab pfx nSpc >> jnSyCrLf
+    let linesTab pfx nSpc = splitCrLf >> syTab pfx nSpc >> jnCrLf
 
 [<AutoOpen>]
 module Tmp =
-    open System
-    open Pth
     let tmpPth        = jnPthSeqLis[Environment.GetEnvironmentVariable "tmp";"fsharp"]
     let tmpNm    ()   = "T" + DateTime.Now.ToString("yyyy_MM_dd_HHmmss")
     let tmpFn    ext  = tmpNm() + ext
@@ -598,9 +578,6 @@ module Tmp =
 
 [<AutoOpen>]
 module Wrt =
-    open Convert
-    open System.IO
-    open Opt
     let wrtStr ft s = File.WriteAllText(ft,s)
     let wrtStrOpt ft s' = if(isSome s') then wrtStr ft (optVal s')
     let wrtSy ft sy = File.WriteAllLines(ft,sy)
@@ -608,34 +585,20 @@ module Wrt =
 
 [<AutoOpen>]
 module Brw =
-    open Wrt
-    open Tmp
-    open Convert
-    open Jn
-    open Shell
-    open Pth
     let brwFt ft = shell(sprintf "code.cmd \"%s\" " ft)(sty.NormalFocus )
     let brwStr s = let t = tmpFt() in wrtStr t s; brwFt t
-    let brwAy ay = ay|>ayToSy|>jnSyCrLf|>brwStr
-    let brwOy oy = oy|>oyToSy|>jnSyCrLf|>brwStr
+    let brwAy ay = ay|>ayToSy|>jnCrLf|>brwStr
+    let brwOy oy = oy|>oyToSy|>jnCrLf|>brwStr
     let brwObj o = o|> oToStr|>brwStr
     let brwPth pth  = if(isPthExist pth) then shell(sprintf """explorer "%s" """ pth)  sty.NormalFocus
     let brwTmpPth ()  = brwPth tmpPth
 
 [<AutoOpen>]
 module FtSrt =
-    open Alias
-    open FtRead
-    open Wrt
     let srtFt ft = ft |> ftLy |> aySrt |> wrtAy ft
 
 [<AutoOpen>]
 module MacroStr =
-    open StrSplit
-    open Quote
-    open StrHas
-    open StrTak
-    open Alias
     let macroStrToSy s = 
         let sy  = split "{" s
         let sy1 = sy |> ayWh (hasSs "}")
@@ -645,17 +608,10 @@ module MacroStr =
         o
 [<AutoOpen>]
 module Er =
-    open Convert
-    open StrOp
-    open Jn
-    open MacroStr
-    open Tab
-    open Ay
-    open Alias
-    open PfxSfx
+    type macroStr = string
     let erVarLines(nm:string)(o:obj)  = 
         linesTab nm ((len nm)+1) (toStr o)
-    let erLines macroStr (olis:obj list) = 
+    let erLines(macroStr:macroStr)(olis:obj list) = 
         let oy = olis |> List.toArray
         let x(o,nm) = erVarLines nm o
         let s = 
@@ -664,12 +620,11 @@ module Er =
             |> syAddPfx "    " 
             |> ayZip oy
             |> ayMap x
-            |> jnSyCrLf
+            |> jnCrLf
         macroStr + "\r\n" + s
-    let er macroStr olis = failwith (erLines macroStr olis)
-
+    let er macroStr olis = erLines macroStr olis |> tee brwStr |> failwith
+        
 module OptSeq =
-    open System.Linq
     let zip seq seq' = 
         query {
             for (seq,seq') in Seq.zip seq seq' do
@@ -677,15 +632,13 @@ module OptSeq =
             select (seq,seq'.Value)
         }
 module OptAy =
-    open System.Linq
     let zip ay ay' =
         query {
             for (ay,ay') in Array.zip ay ay' do
             where (isSome ay')
             select (ay, ay'.Value)
-        } |> Seq.toList
+        } |> Seq.toArray
 module OptLis =
-    open System.Linq
     let zip lis lis' = 
         query {
             for (lis,lis') in List.zip lis lis' do
@@ -705,25 +658,22 @@ module SeqUnzip =
 
 [<AutoOpen>]
 module Dup =
-    open Convert
-    open System.Linq
-    let dupList lis = 
+    let ayWhDup ay = 
         query {
-            for i in Queryable.AsQueryable(lis) do
+            for i in Queryable.AsQueryable(ay) do
             groupBy i into g
             where(g.Count()>1)
-            select g.Key } |> Seq.toList
-    let dupMsgLisByDup dup lis =
-        let dupMsg itm = sprintf "dup(%s)" (toStr itm)
-        let msgOpt = itmIfMap (inSeq dup) dupMsg
-        let o = lis |> List.map msgOpt
+            select g.Key } |> Seq.toArray
+    let ayDupMsgByDup dup ay =
+        let dupMsg = toStr >> sprintf "dup(%s)" >> some
+        let msgOpt itm = if itm |> inSeq dup then dupMsg itm else None
+        let o = ay |> Array.map msgOpt
         o
-    let dupMsgLis lis = dupMsgLisByDup (dupList lis) lis
-    let dupFstTermMsgLis lis = lis |> List.map fstTerm |> dupMsgLis
-    let dupFstTermMsgAyLis(lis:string list) : string[] list=
-        let a = lis |> dupFstTermMsgLis
-        a |> List.map (fun(i:string option) -> if isSome i then [|i.Value|] else [||])
-    let doc'msglisByDup =
+    let ayDupMsg ay = ayDupMsgByDup (ayWhDup ay) ay
+    let syFstTermDupMsg sy = sy |> Array.map fstTerm |> ayDupMsg
+    let optToLis a = if isSome a then [a.Value] else []
+    let syFstTermDupChkr = syFstTermDupMsg >> Array.map optToLis
+    let doc'ayDupMsgByDup =
         let doc = 
             """
 msgOptOfDup'doc = {dup}      {seq}   :  {dupMsgOpt}
@@ -731,14 +681,14 @@ msgOptOfDup'doc = {dup}      {seq}   :  {dupMsgOpt}
 it is mapping of {seq} to some {dupMsgOpt} if {seq}-itm is found in {dup}
 """
         let eg0() =
-            let dup = ["aa";"bb"]
-            let lis = ["aa";"aa";"cc";"bb";"dd"]
-            Er.erLines doc [dup;lis;dupMsgLisByDup dup lis]
+            let dup = [|"aa";"bb"|]
+            let ay = [|"aa";"aa";"cc";"bb";"dd"|]
+            Er.erLines doc [dup;ay;ayDupMsgByDup dup ay]
         let eg = [eg0]
         {doc=doc;eg=eg}
-    let doc'msgOpt =
+    let doc'ayDupMsg =
         let doc = """
-msgOpt = {linLis} : {msgOpt}
+ayDupMsg = {linLis} : {msgOpt}
        : 'a list -> string option list
 where the (output-list-item).Some is the er msg for dup item: in dup(?)
  """
@@ -752,7 +702,7 @@ cc dd
 ddd
 xxx
 cc  dd"""
-            let lis = splitCrLf tp |> ayToLis
-            erLines doc [lis; dupMsgLis lis]
+            let ay = splitCrLf tp 
+            erLines doc [ay; ayDupMsg ay]
         let eg = [eg0]
         {doc=doc; eg=eg}

@@ -54,11 +54,16 @@
     <Compile Include="Core.fs" />
     <Compile Include="Tp.fs" />
     <Compile Include="ChkLy.fs" />
+    <Compile Include="Dta.fs" />
+    <Compile Include="Refl.fs" />
     <None Include="Script.fsx" />
     <Content Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Compile Include="main..fs" />
+    <Content Include="SqTp.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />

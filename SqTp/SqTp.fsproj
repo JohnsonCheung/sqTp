@@ -51,10 +51,12 @@
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
     <Compile Include="SqTp.fs" />
-    <Compile Include="SqTp1.Test.fs" />
-    <Compile Include="SqTp.Test.fs" />
+    <Compile Include="SqTp.Tst.Dta.fs" />
+    <Compile Include="SqTp.Tst.fs" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.VisualBasic" />
+    <Reference Include="Microsoft.VisualBasic.Compatibility" />
     <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework">
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Microsoft Visual Studio\Preview\Community\Common7\IDE\ReferenceAssemblies\v4.0\Microsoft.VisualStudio.QualityTools.UnitTestFramework.dll</HintPath>
     </Reference>
