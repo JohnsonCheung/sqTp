@@ -1,6 +1,7 @@
 ﻿#nowarn "40" 
 #nowarn "64" 
 namespace Lib.Dta
+open Lib.Core
 type simTy = SimNbr|SimTxt|SimLgc|SimDte|SimObj
 type sdr = string[]
 type dr = obj[]
@@ -8,9 +9,9 @@ type sdry = string[][]
 type dry = obj[][]
 type drs = {fny:string[];tyAy:simTy[];dry:dry}
 type dt = {nm:string;drs:drs}
-type ds = {nm:string;dtDic:Map<string,dt>}
+type ds = {nm:string;dtDic:dic<dt>}
 open Lib.Core
-module SimTy = 
+module H = 
     let simTy(s:string) = 
         match s.ToUpper() with 
         | "NBR" -> SimNbr
@@ -18,10 +19,7 @@ module SimTy =
         | "LGC" -> SimLgc
         | "DTE" -> SimDte
         | "OBJ" -> SimObj
-        | _ -> SimObj
-    let objSimTy(o:obj):simTy = SimNbr
-open SimTy
-module H =
+        | _ -> er "{simTy str} is invalid.  This is {valid}" [s;"[NBR | TXT | LGC | DTE | OBJ]"]
     let mkLin(wdtAy:int[]) filler sy =
         let left,mid,right = 
             let sep =
@@ -36,19 +34,13 @@ module H =
         let o = sy
         o|>Array.iteri (fun i cell -> o.[i] <- alignL(wdtAy.[i])(cell))
         left + (o|>jn mid) + right
-open H
-module Obj =
-    let objSimTy(o:obj):simTy = 
+    let toSimTy(o:obj):simTy = 
         match o.GetType().Name with 
         | "String" -> SimTxt
         | "DateTime" -> SimDte
         | _ -> SimObj
     let objToStr(o:obj):string = if (isNull o) then "#null" else o.ToString()
-open Obj
-module Dr =
     let drSy = ayMap objToStr
-open Dr
-module Dry = 
     let sdryWdtAy(sdry:sdry) = 
         let f o dr =
             let oSz = sz o
@@ -65,16 +57,14 @@ module Dry =
         let hdr =
             let f o w = o@[strDup w "-"]
             let ay = wdtAy |> ayFold f [] |> lisToAy
-            H.mkLin wdtAy "-" ay
+            mkLin wdtAy "-" ay
         let dtaLis =
-            let f o sdr = o@[H.mkLin wdtAy " " sdr]
+            let f o sdr = o@[mkLin wdtAy " " sdr]
             sdry |> ayFold f []
         hdr::dtaLis@[hdr] |> lisToAy
     let dryFmtLy dry =
         let sdry = drySdry dry
         sdryFmtLy sdry
-open Dry
-module Drs =
     let drs fldLvs simTyLvs dry = 
         let fny = splitLvs fldLvs
         let tyAy = splitLvs simTyLvs |> ayMap simTy
@@ -87,24 +77,23 @@ module Drs =
             sdryFmtLy (ayAdd [|fny|] sdry)
         let lin= sdryFmtLy.[0]
         ayInsBef 2 [|lin|] sdryFmtLy
-open Drs
-module Dt =
     let dt nm drs = {nm=nm;drs=drs}
     let dtFmtLy(dt:dt) = 
         let nm = dt.nm
         let drsFmtLy = drsFmtLy dt.drs
         Array.concat[[|"*Dt = " + nm|];drsFmtLy]
-open Dt
-module Dic =
+    let isSdic(o:obj) = match o with :? sdic -> true | _ -> false
     let dicDry(dic:Map<string,'a>):obj[][]= [|for i in dic do yield [|i.Key;i.Value|] |]
     let dicDrs dic = drs "Key Val" "Txt Obj" (dicDry dic)
     let dicDt dtNm dic = dt dtNm (dicDrs dic) 
-open Dic
+    let dicFmtLy dic = dic |> dicDrs |> drsFmtLy
 [<AutoOpen>]
 module Dta =
+    open H
     let dicDt = dicDt
     let dicDrs = dicDrs
     let dicDry = dicDry
+    let dicFmtLy = dicFmtLy
     let dt = dt
     let drs = drs
     let dtFmtLy = dtFmtLy

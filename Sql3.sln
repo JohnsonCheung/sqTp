@@ -5,7 +5,8 @@ VisualStudioVersion = 15.0.26906.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{CE351109-120F-49BB-92A6-7DE05C675F61}"
 	ProjectSection(SolutionItems) = preProject
-		a.fs = a.fs
+		a.fsx = a.fsx
+		ListOfBuilder.fs = ListOfBuilder.fs
 	EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "Lib.Core", "Lib.Core\Lib.Core.fsproj", "{A4E492D9-A72F-4843-99C1-CC73DEE025D5}"

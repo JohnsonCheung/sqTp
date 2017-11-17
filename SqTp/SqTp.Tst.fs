@@ -1,29 +1,58 @@
-﻿namespace Lib.SqTp.Tst
+﻿#nowarn "58"
+namespace Lib.SqTp.T
+(*
 open Microsoft.VisualStudio.TestTools.UnitTesting
 open Lib.SqTp
 open Lib.Core
 open Lib.SqTp.Tst.Dta1
+open Lib.SqTp.ZTyp
 [<AutoOpen>]
 module Dta =
-    let bkAy = Tp.bkAy aSqTp
-    let prm = BkAy.prm bkAy
-    let sw = BkAy.sw bkAy
-    let swLy = BkAy.swLy bkAy
-    let swBrkAy = swLy |> ayMap SwLin.brk 
-    let empSw = ZTyp.empSw
-
-[<TestClass>]
-type SwBrkAy() =
-    member x.evl() =
-        let act = SwBrkAy.evl prm empSw swBrkAy
+    let mutable dtaNo = 0
+    let mutable sqTpBkTy = ZTyp.SqBk
+    let mutable bkAy = Tp.bkAy aSqTp
+    let mutable prm = BkAy.prm bkAy
+    let mutable swSdic = BkAy.sw bkAy
+    let mutable swLy = BkAy.swLy bkAy
+    let mutable sw = SwLy.evl prm swLy
+    let mutable swBrkAy = swLy |> ayMap SwLin.brk 
+    let mutable empSw = ZTyp.empSw
+    let mutable andOrTerm1 = "aa"
+    let mutable tpLy = aSqTp |> splitCrLf
+module Lin =
+    let isSq() = 
+        let x lin =
+            let isSq = if Lin.isSq lin then "true" else ""
+            sprintf "%6s %s" isSq lin
+        tpLy |> ayMap x |> brwSy
+module AndOrTerm1 =
+    let evl() = AndOrTerm1.evl prm sw andOrTerm1
+    let chk() = AndOrTerm1.chk  prm sw andOrTerm1 
+module BkAy =
+    let evl() = BkAy.evl bkAy
+    let ly() = BkAy.ly sqTpBkTy
+module SwBrkAy =
+    let evl() = SwBrkAy.evl prm sw swBrkAy
+(*
+namespace Lib.SqTp.TClass
+open Microsoft.VisualStudio.TestTools.UnitTesting
+open Lib.SqTp.Tst.Dta1
+open Lib.SqTp.T
+*)
+[<TestClass>]type BkAy () =
+    [<TestMethod>]member x.evl() = 
+        let act = BkAy.evl()
         let exp = ""
-//       Assert.AreEqual(exp,act) 
+        //       Assert.AreEqual(exp,act) 
         ()
-
-[<TestClass>]
-type SwLinChk() =
-    [<TestMethod>]
-    member x.``Term_MustExist_in_Prm_or_Sw``() = 
+[<TestClass>]type SwBrkAy () =
+    [<TestMethod>]member x.evl() =
+        let act = SwBrkAy.evl()
+        let exp = ""
+        //       Assert.AreEqual(exp,act) 
+        ()
+[<TestClass>]type SwLinChk() =
+    [<TestMethod>]member x.``Term_MustExist_in_Prm_or_Sw``() = 
         let sw = sdicByLy [|"?BrkS 1"|]
         let prm = sdicByLy [|"%A 1"|]
         let tst swLin = 
@@ -42,16 +71,14 @@ type SwLinChk() =
         tstF "%Sw OR ?BrkS %A1" ["term(%A1) not found in prm"]
         tstF "%Sw OR ?BrkS1 %AB" ["term(?BrkS1) not found in sw"; "term(%AB) not found in prm"]
         tstF "%Sw EQ ?BrkS1 %AB %A" ["term(?BrkS1) not found in sw"; "term(%AB) not found in prm"]
-
-[<TestClass>]
-type SwLy() =
-    [<TestMethod>]
-    member x.evl() = 
+[<TestClass>]type SwLy    () =
+    [<TestMethod>]member x.evl() = 
+        let prm = prm
+        let swLy = swLy
         let act = SwLy.evl prm swLy
         //brwDic act
         ()
-    [<TestMethod>]
-    member x.vdt() = 
+    [<TestMethod>]member x.vdt() = 
         let act = SwLy.vdt prm swLy
         let exp = false, """?LvlY    EQ %SumLvl Y
 ?LvlM    EQ %SumLvl M
@@ -71,16 +98,8 @@ type SwLy() =
 ?sel#Sto NE %LisSto *blank
 ?sel#Crd NE %LisCrd *blank"""
         Assert.AreEqual(exp,act)
-
-[<TestClass>]
-type SqlTp() =
-    [<TestMethod>]
-    member x.aa() = sqTpEvl aSqTp |> brwObj
-
-[<TestClass>]
-type Ly() =
-    [<TestMethod>]
-    member x.``Ly.ty: should be SqBk``() =
+[<TestClass>]type Ly      () =
+    [<TestMethod>]member x.``Ly.ty: should be SqBk``() =
         let tst line0 line1 =
             let act = Ly.ty [|line0;line1|]
             let exp = ZTyp.SqBk
@@ -99,38 +118,31 @@ type Ly() =
         tst "?Sel"    "xx"
         tst "?Seldis" "xx"
         tst "?Upd"    "xx"
-    [<TestMethod>]
-    member x.``Ly.ty: should not be SqBk, sw.  Because ?-lines is more than non-?-line``() =
+    [<TestMethod>]member x.``Ly.ty: should not be SqBk, sw.  Because ?-lines is more than non-?-line``() =
         let tst line0 =
             let act = Ly.ty [|line0|]
             let exp = ZTyp.SwBk
             Assert.AreEqual(exp,act)
         tst "?sel"    
         tst "?seldis"
-        tst "?upd"   
-[<TestClass>]
-type PrmLin() =
-    [<TestMethod>]
-    member x.``chk should return no error (None)``() = 
+        tst "?upd"
+[<TestClass>]type PrmLin  () =
+    [<TestMethod>]member x.``chk should return no error (None)``() = 
         let tst lin = 
             let act = PrmLin.chk lin
             Assert.IsNull act
         tst "%ldsf sldf df"
         tst "%?ldsf 1"
         tst "%?ldsf 0"
-    [<TestMethod>]
-    member x.``chk should return some er (Some string)``() = 
+    [<TestMethod>]member x.``chk should return some er (Some string)``() = 
         let tst erMsg lin = 
             let act = PrmLin.chk lin
             Assert.AreEqual(Some erMsg,act)
         tst "must have pfx-(%)"                     "aldsf sldf df"
         tst "for %?, it should have only 2 terms"   "%?aldsf sldf df"
         tst "for %?, 2nd term must be 0 or 1"       "%?aldsf df"
-
-[<TestClass>]
-type PrmLy() =
-    [<TestMethod>] 
-    member x.``chk should be no error and no change in tp``() =
+[<TestClass>]type PrmLy   () =
+    [<TestMethod>]member x.``chk should be no error and no change in tp``() =
         let tst ly = 
             let act_isEr,act_tp = PrmLy.vdt ly
             let exp_isEr = false
@@ -145,8 +157,7 @@ type PrmLy() =
                 "%ab 1234 12 3  ---(dup(%ab))" 
                 "%xyz          " 
                 "%dd           " |]
-    [<TestMethod>] 
-    member x.``chk should be no error and but tp is modified``() =
+    [<TestMethod>]member x.``chk should be no error and but tp is modified``() =
         let tst ly exp_tp =
             let act_isEr,act_tp = PrmLy.vdt ly
             let exp_isEr = false
@@ -165,22 +176,21 @@ type PrmLy() =
                 "%ab 1234 12 3  ---(dup(%ab))" 
                 "%xyz          " 
                 "%dd           " |]
-
- [<TestClass>] 
-type SqTp() = 
-    [<TestMethod>] 
-    member x.evl() =
+[<TestClass>]type SqTp    () = 
+    [<TestMethod>]member x.evl() =
         let act = sqTpEvl aSqTp
+        brwObj act
         let exp = {tp'=Some "";sq'=Some ""}
         Assert.AreEqual(exp,act)
-
 module main =
     [<EntryPointAttribute>]
     let main args =
+        BkAy().evl()
         //Ly().``Ly.ty: should be SqBk``()
-        SqTp().evl()
+        //SqTp().evl()
         //SwBrkAy().evl()
         //SwLy().vdt()
         //SwLy().evl()
         //SwLinChk().``Term_MustExist_in_Prm_or_Sw``()
         0
+*)
