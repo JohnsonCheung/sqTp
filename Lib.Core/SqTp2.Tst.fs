@@ -1,22 +1,22 @@
 ﻿#nowarn "58"
-namespace Lib.SqTp.T
+namespace Lib.SqTp2.T
 (*
 open Microsoft.VisualStudio.TestTools.UnitTesting
-open Lib.SqTp
+open Lib.SqTp2
+open Lib.SqTp2.Types
 open Lib.Core
-open Lib.SqTp.Tst.Dta1
-open Lib.SqTp.ZTyp
 [<AutoOpen>]
 module Dta =
     let mutable dtaNo = 0
-    let mutable sqTpBkTy = ZTyp.SqBk
-    let mutable bkAy = Tp.bkAy aSqTp
+    let mutable sqTpBkTy = SqBk
+    let mutable sqTp = SqTp(aSqTp)
+    let mutable blks = Tp.bkAy aSqTp
     let mutable prm = BkAy.prm bkAy
     let mutable swSdic = BkAy.sw bkAy
     let mutable swLy = BkAy.swLy bkAy
     let mutable sw = SwLy.evl prm swLy
     let mutable swBrkAy = swLy |> ayMap SwLin.brk 
-    let mutable empSw = ZTyp.empSw
+    let mutable empSw = empSw
     let mutable andOrTerm1 = "aa"
     let mutable tpLy = aSqTp |> splitCrLf
 module Lin =
@@ -33,12 +33,10 @@ module BkAy =
     let ly() = BkAy.ly sqTpBkTy
 module SwBrkAy =
     let evl() = SwBrkAy.evl prm sw swBrkAy
-(*
 namespace Lib.SqTp.TClass
 open Microsoft.VisualStudio.TestTools.UnitTesting
-open Lib.SqTp.Tst.Dta1
-open Lib.SqTp.T
-*)
+open Lib.SqTp2.Tst.Dta1
+open Lib.SqTp2.T
 [<TestClass>]type BkAy () =
     [<TestMethod>]member x.evl() = 
         let act = BkAy.evl()

@@ -57,7 +57,7 @@ type clnLy = ly
 type tpLy = ly
 type sqpPfx = string
 type qTy = PrmBk|SwBk|SqBk|RmkBk|ErBk
-type sqpTy = Sel|SelDis|Upd|Set|Fm|Into|Gp|Jn|Left|Wh|And
+type sqpTy = Sel|SelDis|Upd|Set|Fm|Into|Gp|Jn|Left|Wh|And|Drp
 //------------------------------
 type prmSdic = sdic
 type swSdic = sdic
@@ -70,6 +70,7 @@ type swT1 = term
 type swT2 = term
 type swLgc = SwAndOr of andOr*swTerm[] | SwEqNe of eqNe*swT1*swT2
 type swBrk = {lin:swLin;k:swKey;lgc:swLgc option}
+
 namespace Lib.SqTp2
 open Lib.Core
 open Lib.Tp
@@ -134,28 +135,12 @@ type VSw(swLy:swLy,swSdic:sdic,prmSdic:sdic) =
         }
     let swLy_chkr(swLy:swLy):vdtMsgs = 
         let lyMsgs = swLy|>ayMap(swLin_msgs)
-        VdtMsgs.empty
+        VdtMsgs.empVdtMsgs
     let swLy_vdtMsgs(ly:swLy) = Ly.vdtMsgs [swLy_chkr] true ly
     member x.vdtMsgs = [||],[]
-type VBk(ty:qTy,fstLinOpt:lin option,ly:ly,prmSdic:prmSdic,swSdic:swSdic) =
-    let rmkLy_vdtMsgs():vdtMsgs = ly|>ayMap(fun _->[]),[]
-    let vdtMsgs_ =
-        match ty with
-        | PrmBk -> VPrm(ly).vdtMsgs
-        | SwBk  -> VSw(ly,swSdic,prmSdic).vdtMsgs
-        | SqBk  -> VSq(ly,swSdic,prmSdic).vdtMsgs
-        | ErBk  -> VBk.erLy_vdtMsgs
-        | RmkBk -> rmkLy_vdtMsgs()
-    static member private erLy_vdtMsgs =
-        let endMsgs = [
-            "These block is error due to it is not parameter block, not switch block, not remark block and not sql block"
-            ]
-        VdtMsgs.empty
-    member x.vdtMsgs = vdtMsgs_
-    member x.vdtTp = VdtMsgs.vdtTp(fstLinOpt)(ly)(vdtMsgs_)
-type QBk(bk:bk) =
-    inherit bk(bk.fstLinOpt,bk.ly)
-    let no3DashRmkLy_ = bk.ly |> ayMap lin_rmv3DashRmk
+type QBk(b:bk) =
+    inherit bk(b.fstLinOpt,b.ly)
+    let no3DashRmkLy_ = b.ly |> ayMap lin_rmv3DashRmk
     let isRmk = sz >> eq 0
     let isMajPfx pfx ly = 
         let c1,c2 = syPfxCnt pfx ly
@@ -171,31 +156,67 @@ type QBk(bk:bk) =
             if isSq  ly then return SqBk
             return ErBk
         }
-    let ty_ = bkTy bk.ly
-    member x.vdt(prmSdic:prmSdic,swSdic:swSdic) = VBk(ty_,bk.fstLinOpt,bk.ly,prmSdic,swSdic)
+    let ty_ = bkTy b.ly
     member x.ty:qTy = ty_
     member x.no3DashRmkLy = no3DashRmkLy_
+type VBk(b:QBk,prmSdic:prmSdic,swSdic:swSdic) =
+    let zTy:qTy = b.ty
+    let fstLinOpt = b.fstLinOpt
+    let ly = b.ly
+    let x() = ly|>ayMap(fun _->[])
+    let zVdtMsgs =
+        match zTy with
+        | PrmBk -> VPrm(ly).vdtMsgs
+        | SwBk  -> VSw(ly,swSdic,prmSdic).vdtMsgs
+        | SqBk  -> VSq(ly,swSdic,prmSdic).vdtMsgs
+        | ErBk  -> x(),["These block is error due to it is not parameter block, not switch block, not remark block and not sql block"]
+        | RmkBk -> x(),[]
+    let zVdtTp = VdtMsgs(zVdtMsgs).vdtTp fstLinOpt ly
+    member x.vdtMsgs = zVdtMsgs
+    member x.vdtTp = zVdtTp
+    member x.isEr = fst zVdtTp
+    member x.ty = zTy
 type QBlks(tp:sqTp) =
-    let clnQBkAy_ = tp |> tpBkAy "==" |> ayMap QBk
-    member x.sqLyAy = x.lyAy SqBk
-    member x.noRmkSqLyAy = x.sqLyAy |> ayMap ly_rmvRmkLin
-    member x.swLy  = x.fstLy SwBk
-    member x.tp = tp
-    member x.prmLy = x.fstLy PrmBk
-    member x.prmSdic:sdic = x.prmLy |> sdicByLySkipDup
-    member x.prm:prm = x.prmLy |> sdicByLy
-    member x.swSdic:sdic = x.swLy |> sdicByLySkipDup
-    member x.clnQBkAy = clnQBkAy_
-    member x.lyAy ty:ly[] = 
+    let zClnQBkAy = tp |> tpBkAy "==" |> ayMap QBk
+    let lyAyOfTy ty:ly[] = 
         let eqTy (b:QBk) = b.ty = ty
         let ly(b:QBk) = b.ly
-        clnQBkAy_ |> ayWh eqTy |> ayMap ly
-    member x.fstLy ty = seqHeadDft([||])(x.lyAy ty) 
+        zClnQBkAy |> ayWh eqTy |> ayMap ly
+    let fstLy ty = seqHeadDft([||])(lyAyOfTy ty)
+    let zSqLyAy = lyAyOfTy SqBk
+    let zNoRmkSqLyAy = zSqLyAy |> ayMap ly_rmvRmkLin
+    let zSwLy = fstLy SwBk
+    let zSwLyAy = lyAyOfTy SwBk
+    let zLyAy = zClnQBkAy|>ayMap(fun(b:QBk)->b.ly)
+    let zPrmLy = fstLy PrmBk
+    let zPrmSdic = zPrmLy |> sdicByLySkipDup
+    let zSwSdic = zSwLy |> sdicByLySkipDup
+    let zVdtAy = zClnQBkAy |> ayMap(fun(b:QBk) -> VBk(b,zPrmSdic,zSwSdic))
+    let zVdtTp =         
+        let isErAy,msgTpAy = zVdtAy |> ayMap(fun(v:VBk)->v.vdtTp) |> ayUnzip
+        let isEr = isErAy |> ayAny pT
+        let msgTp = ""
+        isEr,msgTp
+    member x.isVdtEr = fst zVdtTp
+    member x.sqLyAy = zSqLyAy
+    member x.erBkAy = zVdtAy |> Array.choose(fun(b:VBk)->if b.isEr then Some(b) else None)
+    member x.noRmkSqLyAy = zNoRmkSqLyAy
+    member x.swLy  = zSwLy
+    member x.tp = tp
+    member x.swLyAy = zSwLyAy
+    member x.lyAy = zLyAy
+    member x.prmLy = zPrmLy
+    member x.prmSdic = zPrmSdic
+    member x.prm():prm = zPrmLy |> sdicByLy
+    member x.swSdic:sdic = zSwLy |> sdicByLySkipDup
+    member x.clnQBkAy = zClnQBkAy
+    member x.vdtAy = zVdtAy
+    member x.vdtTp:vdtTp = zVdtTp
 type SqTpDta(tp:sqTp) =
 //    let swLy_vdtMsgs i x:vdtMsgs=x2 swLy_vdtMsgs prmSdic (swLy i) x
 //    let swLin_msgs i j x:msgs= x3 swLin_msgs prmSdic swSdic (swLin i j) x
     let blks = QBlks(tp)
-    let swLyAy:swLy[] = blks.lyAy SwBk
+    let swLyAy:swLy[] = blks.swLyAy
     let swLy(i:ix):swLy = swLyAy.[i]
     let swLin i (j:jx):swLin = (swLy i).[j]
     let prmSdic:prmSdic = blks.prmSdic
@@ -264,7 +285,7 @@ type Sw(swLy:swLy,isVdtEr,prm:prm) =
             let oSw = kvAy |> ayFold (fun(sw:sw) kv -> sw.Add kv) sw
             oSw
         oSwBrkAy,oSw,oIsEvled
-    let swDic_ =
+    let zSwDic =
         if isVdtEr then Map.empty<string,bool> else
             let swBrkAy = swLy |>  ayMap swLin_brk
             let rec e2 swBrkAy sw cnt:sw = 
@@ -281,21 +302,7 @@ type Sw(swLy:swLy,isVdtEr,prm:prm) =
                                 "{Sw} is switch-dictionary.  {swLy} {prm}")
                                 [lines; sw; swLy; prm]
             e2 swBrkAy (Map.empty<string,bool>) 0
-    member x.swDic = swDic_
-type Vdt(blks:QBlks) =
-    let prmSdic = blks.prmSdic
-    let swSdic  = blks.swSdic
-    let isEr_, msgTp_ = 
-        let isErAy,msgTpAy =
-            blks.clnQBkAy
-            |>ayMap(fun(b:QBk)->b.vdt(prmSdic,swSdic).vdtTp)
-            |>Array.unzip
-        let isEr = isErAy |> ayAny pT
-        let msgTp = ""
-        isEr,msgTp
-    member x.isEr = isEr_
-    member x.msgTp = msgTp_
-    member x.rslt = isEr_,msgTp_
+    member x.swDic = zSwDic
 type SqpCxt(ty,rst:sqRst,?exprDic:edic) =
     let edic = if isSome exprDic then exprDic.Value else empSdic
     do
@@ -344,19 +351,19 @@ type SqpCxt(ty,rst:sqRst,?exprDic:edic) =
     let xgp() = 
         let o = elines |> ayMap (linesAddSfx ew "") |> jn ",\r\n"
         o
-    let cxt_ =
+    let zCxt =
         match ty with
         | Sel | SelDis -> xsel()
         | Gp ->           xgp()
         | Set ->          xset()
         | Jn | Left | Fm | Upd | Into -> rst
         | Wh | And ->     xwh()
-    member x.cxt:sqpCxt = cxt_
+    member x.cxt:sqpCxt = zCxt
 type SqLin(sqLin,?exprDic:edic) =
     let fst,rst = shiftTerm sqLin
-    let ty_ = unionParseI<sqpTy> fst
-    let pfx_ =
-        match ty_ with
+    let zTy = unionParseI<sqpTy> fst
+    let zPfx =
+        match zTy with
         | Sel    -> "Select"
         | SelDis -> "Select Distinct"
         | Upd    -> "Update       "
@@ -368,13 +375,14 @@ type SqLin(sqLin,?exprDic:edic) =
         | Wh     -> "   Where     "
         | And    -> "   And       "
         | Into   -> "   Into      "
+        | Drp    -> "Drop Table "
     let edic = if isSome exprDic then exprDic.Value else empSdic
-    let cxt_ = SqpCxt(ty_, rst, edic).cxt
-    let lines_ = pfx_ + cxt_ + "\r\n\r\n"
-    member x.ty = ty_
-    member x.cxt = cxt_
-    member x.pfx = pfx_
-    member x.lines = pfx_ + cxt_
+    let zCxt = SqpCxt(zTy, rst, edic).cxt
+    let zLines = zPfx + zCxt + "\r\n\r\n"
+    member x.ty = zTy
+    member x.cxt = zCxt
+    member x.pfx = zPfx
+    member x.lines = zPfx + zCxt
 type NoOptTermSqLy(clnSqLy:sqLy,sw:swDic) = 
     let oneLin sqLin =
         let (&&&) = pAnd
@@ -395,44 +403,30 @@ type NoOptTermSqLy(clnSqLy:sqLy,sw:swDic) =
             remain |> ayMap (rmvPfx "?") |> jnSpc |> addPfx (fst + " ")
     let o = clnSqLy |> ayMap oneLin |> ly_rmvBlankLin
     member x.ly = o
-type SqStmt(clnSqLy:sqLy,prm:prm,sw:sw) =
-    let swKeyOpt():swKey option = 
+type SqStmt(clnSqLy:sqLy,?prmOpt:prm,?swOpt:sw) =
+    let prm = if isSome prmOpt then prmOpt.Value else empSdic
+    let sw = if isSome swOpt then swOpt.Value else empBdic
+    let swKey():swKey = 
         let ty = clnSqLy |> fstEleDft "" |> fstTerm |> rmvPfx "?" |> toLower
-        let isSel = ty = "sel" || ty = "seldis"
-        let isUpd = ty = "upd"
-        let updLin = 
-            if not isUpd then "" else
-            (*
-            if Array.isEmpty clnSqLy then None else
-                clnSqLy.[0] |> itmSome (hasPfxLis ["upd";"?upd"])
-            *)
-            ""
-        let intoLin = 
-            if not isSel then "" else
-            (*
-            match updLin with
-            | Some l -> l
-            | _ ->
-                let fmLin = Array.tryFind(hasPfx "fm") clnSqLy
-                match fmLin with
-                | Some l -> l
-                | _ -> er "the {SqLy} should have [Upd | Fm] -line" [clnSqLy]
-            *)
-            ""
-        let tblNmLin = if isUpd then updLin else (if isSel then intoLin else "") 
-        let tblNm = tblNmLin |> sndTerm
-        let isCrtTbl = true
-        let swKeyOpt = if isCrtTbl then Some("?" + ty + tblNm) else None
-        swKeyOpt
-    let evlTy_ =
+        let tblNmLin = 
+            match ty with
+            | "sel" | "seldis" -> clnSqLy.[0] |> rmvFstTerm 
+            | "into"           -> clnSqLy |> ayWhOne(hasPfx "into")
+            | _ -> ""
+        let swKey = 
+            if tblNmLin = "" then "" else 
+                let tblNm = tblNmLin |> sndTerm
+                "?" + ty + tblNm
+        swKey
+    let zEvlTy =
         let isDrp() =  clnSqLy |> ayMap fstTerm |> isAllEqTo "drp"
         let isSkip() = 
             let lin0 = clnSqLy |> fstEleDft ""
             if fstChr lin0 <> "?" then false else
-                if (dicVopt (swKeyOpt().Value) sw) = Some false then false else true 
+                if (dicVopt (swKey()) sw) = Some false then false else true 
         seqChoose [isSkip;isDrp] [SKIP;DROP;NORM]
-    let sqStmt_ = 
-        match evlTy_ with
+    let zSqStmt = 
+        match zEvlTy with
         | SKIP -> ""
         | DROP -> 
             let toDrpStmt tblNm = "Drop Table #" + tblNm + "\r\n"
@@ -444,14 +438,14 @@ type SqStmt(clnSqLy:sqLy,prm:prm,sw:sw) =
             let lines sqLin = SqLin(sqLin,edic).lines 
             let lines = NoOptTermSqLy(stmtLy,sw).ly |> ayMap lines |> jnCrLf
             lines
-    member x.evlTy = evlTy_
-    member x.sqStmt = sqStmt_
+    member x.evlTy = zEvlTy
+    member x.sqStmt = zSqStmt
 type SqStmts(blks:QBlks,?isVdtErOpt) =
     let dftF opt = if isSome opt then opt.Value else false
     let isVdtEr = dftF isVdtErOpt
     let sqOpt_ = 
         if isVdtEr then None else
-        let prm = blks.prm
+        let prm = blks.prm()
         let swLy = blks.swLy
         let sw = Sw(swLy,isVdtEr,prm).swDic
         let stmt sqLy = SqStmt(sqLy,prm,sw).sqStmt
@@ -459,38 +453,38 @@ type SqStmts(blks:QBlks,?isVdtErOpt) =
         Some(sqStmts)
     member x.sqOpt = sqOpt_
 type SqTp(tp:sqTp) = 
-    let blks_ = QBlks(tp)
-    let vdt_ = Vdt(blks_)
-    let isEr,msgTp = vdt_.rslt
-    let sqStmts_ = SqStmts(blks_,isEr)
-    let sqOpt_ = sqStmts_.sqOpt
-    let tpOpt_ = if tp=msgTp then None else Some msgTp
-    let evl_:runRslt = tpOpt_,sqOpt_
-    member x.evl = evl_
-    member x.blks = blks_
-    member x.vdt = vdt_
-    member x.sqStmts = sqStmts_
-    member x.sqOpt = sqOpt_
+    let zBlks = QBlks(tp)
+    let zVdtTp = zBlks.vdtTp
+    let zIsEr = zVdtTp |> fst
+    let zMsgTp = zVdtTp |> snd
+    let zSqStmts = SqStmts(zBlks,zIsEr)
+    member x.blks = zBlks
+    member x.isEr = zIsEr
+    member x.msgTp = zMsgTp
+    member x.tpOpt = if tp = zMsgTp then None else Some zMsgTp
+    member x.sqStmts = zSqStmts
+    member x.sqOpt = zSqStmts.sqOpt
+    member x.evl:runRslt = x.tpOpt, x.sqOpt
 type SqTpNm(nm:sqTpNm) =
-    let sqFtExt = ".sql"
-    let tpFtExt = ".txt"
-    let tpPth:sqTpPth = @"C:\Users\user\Source\Repos\Sql3\Lib.Core\"
-    let sqFt = tpPth + nm + sqFtExt
-    let tpFt = tpPth + nm + tpFtExt
-    let sqTp_ = SqTp(tpFt |> ftLines)
-    member x.sqTp = sqTp_
-    member x.evl:runRslt = sqTp_.evl
+    let zSqExt = ".sql"
+    let zTpExt = ".txt"
+    let zTpPth:sqTpPth = @"C:\Users\user\Source\Repos\Sql3\Lib.Core\"
+    let zSqFt = zTpPth + nm + zSqExt
+    let zTpFt = zTpPth + nm + zTpExt
+    let zSqTp = SqTp(zTpFt |> ftLines)
+    member x.sqTp = zSqTp
+    member x.evl:runRslt = zSqTp.evl
     member x.run():runRslt  =
         let r = x.evl
         let tpOpt,sqOpt = r
-        strOptWrt sqFt sqOpt
-        strOptWrt tpFt tpOpt
+        strOptWrt zSqFt sqOpt
+        strOptWrt zTpFt tpOpt
         r
     member x.edt():edtRslt =
         let ft_Edt ft:ftEdtRslt = 
             do ftBrw ft
             ftEdtRslt.Done
-        let ftEdtRslt = tpFt |> ft_Edt
+        let ftEdtRslt = zTpFt |> ft_Edt
         match ftEdtRslt with 
         | Done -> 
             (*
@@ -500,5 +494,5 @@ type SqTpNm(nm:sqTpNm) =
             let sqChanged = isSome sqOpt
             Saved(tpChanged,sqChanged,tpFt,sqFt)
             *)
-            Saved(true,true,tpFt,sqFt)
+            Saved(true,true,zTpFt,zSqFt)
         | ftEdtRslt.Cancel -> Cancel

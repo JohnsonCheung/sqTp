@@ -454,6 +454,7 @@ module Core =
     let ayPush itm ay = Array.append ay [|itm|]
 
     // AyWh
+    let ayWhOne cond ay = ay |> ayPick (fun(i)->if cond i then Some i else None)
     let ayWhByBoolAyForT boolAy ay = ayZip boolAy ay |> ayWh(fst>>pT)
     let ayWhByBoolAyForF boolAy ay = ayZip boolAy ay |> ayWh(fst>>pF)
     let ayWhByOnyForNone ony ay = ayZip ony ay |> ayWh(fst>>isNone) |> ayMap snd
@@ -645,6 +646,7 @@ module Function =
     let sdicToStrN(sdic:sdic) = [ for i in sdic do yield (kstrToStrN i) ] |> jnCrLf
     //sdicByVbl "lskdf sldkfj lskdj f|lksdjf lsdkjf |alsdkjf fjdl   l" |> sdicToStrN;;
     let empSdic = Map.empty<string,string>
+    let empBdic = Map.empty<string,bool>
     let dicVopt         k    (dic:Map<'k,'v>) = if dic.ContainsKey(k) then Some(dic.Item k) else None
     let dicVal          k    (dic:Map<'k,'v>) = dic.Item k
     let dicAddKV        (k,v)(dic:Map<'k,'v>) = dic.Add(k,v)
@@ -662,9 +664,9 @@ module Function =
         fmIx,toIx
     let fmTo_isEmpty(ub:ix)(fmTo:fmTo):bool = true
     let ayRplByFmTo by fmTo ay = ay
-    let sdicByLySkipDup = s f1
-    let sdicByLy        = s f2
-    let sdicByVbl       = splitVbar >> sdicByLy
+    let sdicByLySkipDup:ly->sdic = s f1
+    let sdicByLy       :ly->sdic= s f2
+    let sdicByVbl      :vbl->sdic = splitVbar >> sdicByLy
     let isSdic(o:obj) = match o with :? sdic -> true | _ -> false
 
     // Fmt
@@ -800,6 +802,7 @@ module Function =
     // ftSrt
     let ftSrt ft = ft |> ftLy |> aySrt |> ssWrt ft
 
+    // 
     // MacroStr
     let macroStrNy(s:macroStr):sy = 
         let sy  = split "{" s
@@ -827,7 +830,13 @@ module Function =
         let x(nm,lines) = linesTab nm w lines
         let linesLis = zip |> lisMap x
         let lines = macroStr :: linesLis |> jnCrLf
-        lines
+        let fmtStackTrace s =
+            let ay1,ay2 = splitCrLf s |> ayMap((rmvPfx "   at ")>>(brk1 " in ")) |> ayUnzip
+            let ay2a = syAlignL ay2
+            let o = ay2a |> ayZip ay1 |> ayMap(fun(a,b)->b+" "+a) |> jnCrLf
+            o
+        let stack = fmtStackTrace System.Environment.StackTrace
+        lines + "\r\n" + stack
     let er macroStr olis = erLines macroStr olis |> tee brw |> failwith
 
     // Dup

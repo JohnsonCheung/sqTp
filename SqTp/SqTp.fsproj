@@ -52,7 +52,6 @@
   <ItemGroup>
     <Compile Include="SqTp.fs" />
     <Compile Include="SqTp.Tst.Dta.fs" />
-    <Compile Include="SqTp.Tst.fs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />
