@@ -60,18 +60,6 @@
     <Content Include="App.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <Content Include="SqTp.txt">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Compile Include="File2.fsi" />
-    <Compile Include="File2.fs" />
-    <Compile Include="SqTp.fs" />
-    <Compile Include="SqTp1.fs" />
-    <Content Include="Copy of SqTp.txt" />
-    <Compile Include="SqTp2.fs" />
-    <Compile Include="SqTp2.Tst.fs" />
-    <Compile Include="SqTp3.Types.fs" />
-    <Compile Include="SqTp3.fs" />
     <Compile Include="main..fs" />
   </ItemGroup>
   <ItemGroup>

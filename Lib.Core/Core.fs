@@ -17,7 +17,6 @@ type msgOptAy = msgOpt[]
 type oneEleAy<'a> = 'a[]
 type oneEleLis<'a> = 'a list
 type dupSeq<'a> = 'a seq
-type dic<'a> = Map<string,'a>
 type wdt = int
 type pos = int
 type len = int
@@ -52,8 +51,9 @@ type er=macroStr*olis
 type vbl = string
 type ny = string[]
 type cnt = int
-type bdic = Map<string,bool>
-type sdic = Map<string,string>
+type dic<'a> = Map<string,'a>
+type bdic = dic<bool>
+type sdic = dic<string>
 type kstr = Collections.Generic.KeyValuePair<string,string>
 type doc = {nm:string; nmSpc: string; sgn:string; doc:string; eg: (unit->string) list}
 type fmTo = ix*ix
@@ -63,9 +63,11 @@ type LyMsgs(lyMsgs:msgs[]) =
     new() = LyMsgs([||])
 [<AutoOpen>]
 module Core = 
-    // emp
+    // Emp
     let empSlis:slis = []
-
+    let empBdic:bdic = Map.empty<string,bool>
+    let empSdic:sdic = Map.empty<string,string>
+    let empSy:sy = [||]
     // Int
     let nDig n = 
         if 0>n then failwith(sprintf "n-{%i} should be +ve" n) else 
@@ -82,6 +84,7 @@ module Core =
                     | 4 -> sprintf "%04i"
                     | _ -> sprintf "%05i"
         [| for i in {0..n-1} do yield fmt i |]
+
 
     // Opt
     let optVal(opt:'a option) = opt.Value
@@ -115,7 +118,6 @@ module Core =
     let itmSome  p itm     = if(p itm) then Some itm else None
     let itmIf    p t f itm = if(p itm) then t() else f() 
     let itmIfMap p t f itm = if(p itm) then t itm else f itm
-    let isInLis lis itm = List.contains itm lis
     let isInSeq seq itm = Seq.contains itm seq
 
     // Builder
@@ -301,7 +303,14 @@ module Core =
     let lasChr = right 1
     let rmvFstChr = midFm 1
     let rmvLasChr s = left (len s - 1) s
-    let alignL w s = let l = len s in if w >= l then s + spc (w - l) else (left(w-2) s) + ".."
+    let alignL w s = 
+        let l = len s 
+        if w >= l 
+            then s + spc (w - l) 
+            else 
+                if w>=2 
+                    then (left(w-2) s) + ".."
+                    else s
     let isBlankStr (s:string)   = s.Trim() = ""
     let isEmpStr                = pOr (System.String.IsNullOrEmpty) isBlankStr //' not(trim s) match "\S+") 
     let isSomStr s = isEmpStr s |> not
@@ -313,11 +322,11 @@ module Core =
         let s1 = s |> left pos |> trim
         let s2 = s |> midFm (pos+sepLen) |> trim
         s1,s2
-    let private er sep s  = failwith("no sep[" + sep + "] in s[" + s + "]")
+    let private er1 = fun sep s -> failwith("no sep[" + sep + "] in s[" + s + "]")
 
     let private b1 fPos (sep:sep)(s:s) = 
         let p = fPos sep s in 
-        if(p = -1) then er sep s
+        if(p = -1) then er1 sep s
         brkAt p (len sep) s
     let brk     = b1 pos    
     let brkRev  = b1 posRev 
@@ -417,8 +426,8 @@ module Core =
     let optMap f        a' = if isSome a' then a'|>optVal|>f|>some else None
     let optDftMap dft f a' = if isSome a' then a'|>optVal|>f else dft
     let optDft dft      a' = if isSome a' then optVal a' else dft
-    let dft                = optDft
     
+    // Opy
     /// return {'a option[]} from {opy:'a option[]} for those element has value.
     let opyWhSome opy = opy |> ayWh isSome
 
@@ -429,8 +438,14 @@ module Core =
     let opyAllSome ay = ay |> ayAll isSome
     let opyAnySome ay = ay |> ayAny isSome
     let opyAllNone ay = ay |> ayAll isNone
-    let opyAnyNone ay = ay |> ayAny isNone
+    let opyHasNone ay = ay |> ayAny isNone
 
+    // Dft
+    let dft      = optDft
+    let dftF opt = if isSome opt then opt.Value else false
+    let dftT opt = if isSome opt then opt.Value else false
+
+    // To
     let private x nullStr (a:'a):string = 
         let o = box a
         if isNull o then "<null>" else o.ToString() 
@@ -449,9 +464,65 @@ module Core =
     let prtLisNL(lis:'a list) = prtLis lis; NL()
     
     // Ay
-    let sz = Array.length
+    let aySs(ay:'a[]):ss=ay|>seqMap toStr
+    let ayRplByFmTo by (fmTo:fmTo) ay =
+        let (fmIx,toIx) = fmTo
+        let p1 = Array.take fmIx ay
+        let p2 = Array.skip(toIx+1) ay
+        Array.concat[p1;by;p2]
+    let sz (ay:'a[]) = ay.Length 
+    let ub ay        = (sz ay) - 1
+    let isInAyI ay a = ay |> ayAny(strEqIgnCas a)
+    let isInAy ay a = ay |> ayAny(eq a)
+    let ayDupMsg ay=()
+    let ayDup(ay:'a[]) = 
+        query { 
+            for i in ay do
+            groupBy i into g
+            where (g.Count()>1)
+            select g.Key}
+    let ayAddItm itm ay = Array.append ay [|itm|]
+    let ayCut(fmIx,toIx)(ay:'a[]) = [|for i=fmIx to toIx do yield ay.[i]|]
+    let ayLasEleDft dft = ayTryLas >> optDft dft
+    let ayAdd ay1 ay2     = Array.concat(seq{yield ay1;yield ay2})
+    let ayAddIdx(ay:'a[]) = ayMapi zip ay
+    let ayAdj f n ay = ayMapi (fun itm i-> if i=n then f itm else itm)
+    let ayIns(i:'a)(ay:'a[]) = ([i]@(Array.toList ay)) |> Array.ofList
+    let ayInsBef(bef:int)(i:'a[])(ay:'a[]) =
+        let lisBrkBef bef lis = List.take bef lis,List.skip bef lis
+        let p1,p2=lisBrkBef bef (ayToLis ay)
+        let lis = p1@(ayToLis i)@p2
+        lis |> Array.ofList
+    let ayZipF f ay1 ay2 = ayZip ay1 ay2 |> ayMap (zipF f)
+    //    let ayZipF f = ayZip >> (ayMap (zipF f))
+    let ayShift(ay:'a[]) = if(sz ay)=0 then None,ay else (Some ay.[0]),Array.skip 1 ay
+    let ayIdx itm = Array.findIndex (eq itm)
+    let ayIdxOpt itm = Array.tryFindIndex (eq itm)
+    let ayIdxAy itmAy ay = itmAy |> ayMap (fun itm -> ayIdx itm ay)
+    let ayIdxOptAy itmAy ay = itmAy |> ayMap (fun itm -> ayIdxOpt itm ay)
+    let ayRepeat n dft = seq {for j=1 to n do yield  dft} |> Seq.toArray
+    let ayRmvFstEle ay = Array.skip 1 ay
+    let ayRmvLasEle ay = Array.take (sz ay - 1) ay
+    let ayRmvDup ay =
+        let f o c = if (o|>ayHas c) then o else ayAddItm c o
+        ay |> Array.fold f [||]
+    let ayRz n dft ay = 
+        let s = sz ay
+        if n = s then ay
+        else 
+            match n > s with
+            | true -> ayAdd ay (ayRepeat (n-s) dft)
+            | false -> Array.take (s-n) ay
+    let syShift sy = let a0,sy1 = ayShift sy in (dft "" a0), sy1
+    let ssWdt(ss:ss) = ss |> seqMap len |> seqMax 
+    let syAlignL'w w sy = sy |> ayMap (alignL w)
+    let syAlignL sy = sy |> syAlignL'w (ssWdt sy)
+    let syRTrim = ayMap rtrim
+    let syLTrim = ayMap ltrim
+    let syTrim  = ayMap trim
+    let syQuote q = ayMap (quote q)
     let ayIsSamSz ay1 ay2 = sz ay1 = sz ay2
-    let ayPush itm ay = Array.append ay [|itm|]
+    let push itm ay = Array.append ay [|itm|]
 
     // AyWh
     let ayWhOne cond ay = ay |> ayPick (fun(i)->if cond i then Some i else None)
@@ -461,8 +532,7 @@ module Core =
     let ayWhByOnyForSome ony ay = ayZip ony ay |> ayWh(fst>>isSome) |> ayMap snd
     let ayWhDup  ay = ay |> Array.countBy(fun a->a) |> ayChoose (fun(k,c) -> if(c>1) then Some k else None)
 
-[<AutoOpen>]
-module Seq =
+    // Seq
     let isAny = Seq.exists
     let isAll = Seq.forall
     let toAy = seqToAy
@@ -490,70 +560,8 @@ module Seq =
                     | _,true -> None
                     | _,false-> Some(ix',ix-1)
             seq |> Seq.mapi zip |> Seq.tryPick p
-[<AutoOpen>]
-module Ay =
-    let aySs(ay:'a[]):ss=ay|>seqMap toStr
-    let ayRplByFmTo by (fmTo:fmTo) ay =
-        let (fmIx,toIx) = fmTo
-        let p1 = Array.take fmIx ay
-        let p2 = Array.skip(toIx+1) ay
-        Array.concat[p1;by;p2]
-    let empSy:sy = [||]
-    let sz (ay:'a[]) = ay.Length 
-    let ub ay        = (sz ay) - 1
-    let isInAyI ay a = ay |> ayAny(strEqIgnCas a)
-    let isInAy ay a = ay |> ayAny(eq a)
-    let ayDupMsg ay=()
-    let ayDup(ay:'a[]) = 
-        query { 
-            for i in ay do
-            groupBy i into g
-            where (g.Count()>1)
-            select g.Key}
-    let ayAddItm itm ay = Array.append ay [|itm|]
-    let ayCut(fmIx,toIx)(ay:'a[]) = [|for i=fmIx to toIx do yield ay.[i]|]
-    let ayLasEleDft dft = ayTryLas >> optDft dft
-    let ayAdd ay1 ay2     = Array.concat(seq{yield ay1;yield ay2})
-    let ayAddIdx(ay:'a[]) = ayMapi zip ay
-    let ayAdj f n ay = ayMapi (fun itm i-> if i=n then f itm else itm)
-    let ayIns(i:'a)(ay:'a[]) = ([i]@(Array.toList ay)) |> Array.ofList
-    let ayInsBef(bef:int)(i:'a[])(ay:'a[]) =
-        let lisBrkBef bef lis = List.take bef lis,List.skip bef lis
-        let p1,p2=lisBrkBef bef (ayToLis ay)
-        let lis = p1@(ayToLis i)@p2
-        lis |> Array.ofList
-    let ayZipF f ay1 ay2 = ayZip ay1 ay2 |> ayMap (zipF f)
-//    let ayZipF f = ayZip >> (ayMap (zipF f))
-    let ayShift(ay:'a[]) = if(sz ay)=0 then None,ay else (Some ay.[0]),Array.skip 1 ay
-    let ayIdx itm = Array.findIndex (eq itm)
-    let ayIdxOpt itm = Array.tryFindIndex (eq itm)
-    let ayIdxAy itmAy ay = itmAy |> ayMap (fun itm -> ayIdx itm ay)
-    let ayIdxOptAy itmAy ay = itmAy |> ayMap (fun itm -> ayIdxOpt itm ay)
-    let ayRepeat n dft = seq {for j=1 to n do yield  dft} |> Seq.toArray
-    let ayRmvFstEle ay = Array.skip 1 ay
-    let ayRmvLasEle ay = Array.take (sz ay - 1) ay
-    let ayRmvDup ay =
-        let f o c = if (o|>ayHas c) then o else ayAddItm c o
-        ay |> Array.fold f [||]
-    let ayRz n dft ay = 
-        let s = sz ay
-        if n = s then ay
-        else 
-            match n > s with
-            | true -> ayAdd ay (ayRepeat (n-s) dft)
-            | false -> Array.take (s-n) ay
-    let syShift sy = let a0,sy1 = ayShift sy in (dft "" a0), sy1
-    let ssWdt(ss:ss) = ss |> seqMap len |> seqMax 
-    let syAlignL'w w sy = sy |> ayMap (alignL w)
-    let syAlignL sy = sy |> syAlignL'w (ssWdt sy)
-    let syRTrim = ayMap rtrim
-    let syLTrim = ayMap ltrim
-    let syTrim  = ayMap trim
-    let syQuote q = ayMap (quote q)
 
-[<AutoOpen>]
-module Function =
-    let tee f a = f a; a
+    // Function
     let msgOk msg = Interaction.MsgBox(msg,MsgBoxStyle.OkOnly) |> ignore
     let swapPrm f = fun b a -> f a b
     
@@ -609,6 +617,7 @@ module Function =
 
     // StrRpl
     let rpl ss by s = Strings.Replace(s,ss,by)
+    let rplQ = rpl "?"
     let rplOnce ss by s = Strings.Replace(s,ss,by,Count=1)
     let rplDblSpc s = let rec r s = if (hasDblSpc s) then r (rpl "  " " " s) else s in r s
     let rplVbar     = rpl "|" "\r\n"
@@ -645,9 +654,8 @@ module Function =
     /// if the value-str has \r\n, the key will be repeated as key.nnn for each line
     let sdicToStrN(sdic:sdic) = [ for i in sdic do yield (kstrToStrN i) ] |> jnCrLf
     //sdicByVbl "lskdf sldkfj lskdj f|lksdjf lsdkjf |alsdkjf fjdl   l" |> sdicToStrN;;
-    let empSdic = Map.empty<string,string>
-    let empBdic = Map.empty<string,bool>
     let dicVopt         k    (dic:Map<'k,'v>) = if dic.ContainsKey(k) then Some(dic.Item k) else None
+    let dicDftVal dft   k    (dic:Map<'k,'v>) = if dic.ContainsKey(k) then dic.Item k else dft
     let dicVal          k    (dic:Map<'k,'v>) = dic.Item k
     let dicAddKV        (k,v)(dic:Map<'k,'v>) = dic.Add(k,v)
     let dicAddKVSkipDupK(k,v)(dic:Map<'k,'v>) = if dic.ContainsKey(k) |> not then dic.Add(k,v) else dic
@@ -655,22 +663,23 @@ module Function =
     let inDic dic k = dicHasKey k dic
     let notInDic dic = pNot(inDic dic)
     let keyVal dic k = dicVal k dic
+    let keyVopt dic k = dicVopt k dic
+    let keyDftVal dft dic k = dicDftVal dft k dic
     let private f1 (d:sdic) lin = dicAddKVSkipDupK(brk1Spc lin) d
     let private f2 (d:sdic) lin = dicAddKV        (brk1Spc lin) d
     let private s f (ly:ly) = ly |> Array.fold f empSdic
-    let ly_dupFmTo(ly:ly):fmTo=
+    let lyDupFmTo(ly:ly):fmTo=
         let fmIx = 0
         let toIx = 0
         fmIx,toIx
-    let fmTo_isEmpty(ub:ix)(fmTo:fmTo):bool = true
-    let ayRplByFmTo by fmTo ay = ay
+    let fmToIsEmpty(ub:ix)(fmTo:fmTo):bool = true
     let sdicByLySkipDup:ly->sdic = s f1
-    let sdicByLy       :ly->sdic= s f2
+    let sdicByLy       :ly->sdic = s f2
     let sdicByVbl      :vbl->sdic = splitVbar >> sdicByLy
     let isSdic(o:obj) = match o with :? sdic -> true | _ -> false
 
     // Fmt
-    let fmtQQ qqStr (olis:olis) = olis |>lisFold (fun o v->(rplOnce "?" (toStr v) o)) qqStr
+    let fmtQQ qqStr (lis:'a list) = lis |>lisFold (fun o v->(rplOnce "?" (toStr v) o)) qqStr
 
     // Term
     let rmvFstTerm(s:termLvs):termLvs = takAftSpcOrAll s |> ltrim
@@ -678,10 +687,21 @@ module Function =
     let fstTerm:termLvs->term = ltrim >> takBefSpcOrAll
     let sndTerm:termLvs->term = takAftSpcOrAll >> fstTerm
     let shiftTerm(s:termLvs):term*termLvs =(fstTerm s),(rmvFstTerm s)
-    let ly_combineSamFstTerm ly:lin = 
-        match Seq.tryHead ly with 
-        | None -> ""
-        | _ ->
+    let lyCombineFstTerm(ly:ly):ly = 
+        let fmToBy ly = 
+            let ay = ly |> ayMap fstTerm
+            match dupFmTo ay with
+            | Some fmTo -> 
+                let by = [|""|]
+                Some(fmTo,by)
+            | None -> None
+        let rec rpl ly =
+            match (fmToBy ly) with
+            | None -> ly
+            | Some(fmTo,by) -> rpl (ayRplByFmTo by fmTo ly)
+        rpl ly
+    let lyCombineSamFstTerm ly:lin = 
+        if (Seq.tryHead ly).IsNone then "" else
             let fst,rst = ly |> ayMap shiftTerm |> ayUnzip
             if isAllEq fst |> not then failwith "{ly} should have all same fst-term" else
                 fst.[0] + " " + (rst |> jnSpc)
@@ -707,9 +727,9 @@ module Function =
         if ayIsEmpty ly then "" else
             let k = ly.[0] |> fstTerm
             k + (ly |> ayMap rmvFstTerm |> ayMap trim |> jnSpc)
-    let ly_dupFstTermSy(ly:ly):sy = ly |> ayMap fstTerm |> ayWhDup
-    let ly_splitInto_nonDup_and_dup(ly:ly):(ly*dupFstTermLy) = 
-        let dupSy = ly_dupFstTermSy(ly)
+    let lyDupFstTermSy(ly:ly):sy = ly |> ayMap fstTerm |> ayWhDup
+    let lySplitInto_nonDup_and_dup(ly:ly):(ly*dupFstTermLy) = 
+        let dupSy = lyDupFstTermSy(ly)
         if ayIsEmpty dupSy then ly,[||] else
             let f:(slis*slis)->lin->(slis*slis) = fun (nonDup,dup)(lin) ->
                 let t1 = fstTerm lin
@@ -718,27 +738,26 @@ module Function =
             let nonDup = nonDupLis |> lisToAy
             let dup    = dupLis    |> lisToAy
             nonDup,dup
-    let rec ly_mgeDupFstTerm ly =
-        let nonDup,dup = ly_splitInto_nonDup_and_dup ly
+    let rec lyMgeDupFstTerm ly =
+        let nonDup,dup = lySplitInto_nonDup_and_dup ly
         if ayIsEmpty dup then nonDup else
             let lin = dupFstTermLy_mge dup
-            ayPush lin nonDup |> ly_mgeDupFstTerm
-    let sdicByLyHandleDup = ly_mgeDupFstTerm >> sdicByLy
-
+            push lin nonDup |> lyMgeDupFstTerm
+    let sdicByLyHandleDup = lyMgeDupFstTerm >> sdicByLy
 
     // Rmk
-    let lin_has2Dash:lin->bool = hasSub "--"
-    let lin_has3Dash:lin->bool = hasSub "---"
-    let lin_isRmk:lin->bool = pOr isEmpStr lin_has2Dash
-    let lin_isNonRmk:lin->bool = pNot lin_isRmk
-    let lin_rmvRmk rmk:lin->lin = takBefOrAll rmk >> rtrim
-    let lin_rmv3DashRmk:lin->lin = lin_rmvRmk "---"
-    let lin_rmv2DashRmk:lin->lin = lin_rmvRmk "--"
-    let ly_rmv3DashRmk:ly->ly = ayMap lin_rmv3DashRmk
-    let ly_rmv2DashRmk:ly->ly = ayMap lin_rmv2DashRmk
-    let ly_rmvRmkLin:ly->ly = ayWh lin_isNonRmk
-    let lin_isBlank(lin:lin) = lin.Trim() = ""
-    let ly_rmvBlankLin:ly->ly = ayWh (pNot lin_isBlank)
+    let linHas2Dash:lin->bool = hasSub "--"
+    let linHas3Dash:lin->bool = hasSub "---"
+    let linIsRmk:lin->bool = pOr isEmpStr linHas2Dash
+    let linIsNonRmk:lin->bool = pNot linIsRmk
+    let linRmvRmk rmk:lin->lin = takBefOrAll rmk >> rtrim
+    let linRmv3DashRmk:lin->lin = linRmvRmk "---"
+    let linRmv2DashRmk:lin->lin = linRmvRmk "--"
+    let lyRmv3DashRmk:ly->ly = ayMap linRmv3DashRmk
+    let lyRmv2DashRmk:ly->ly = ayMap linRmv2DashRmk
+    let lyRmvRmkLin:ly->ly = ayWh linIsNonRmk
+    let linIsBlank(lin:lin) = lin.Trim() = ""
+    let lyRmvBlankLin:ly->ly = ayWh (pNot linIsBlank)
 
     // Lis
     type dftLis<'a> = unit->'a list
@@ -838,6 +857,7 @@ module Function =
         let stack = fmtStackTrace System.Environment.StackTrace
         lines + "\r\n" + stack
     let er macroStr olis = erLines macroStr olis |> tee brw |> failwith
+    let erImpossible() = er "Impossible to reach here" []
 
     // Dup
     let whDup seq = 
@@ -854,7 +874,7 @@ module Function =
             o
         dupMsgOptAyByDupAy (ayWhDup ay) ay
     let ly_dupFstTermMsgOptAy(ly:ly):msgOptAy=
-        let dupSy=ly_dupFstTermSy(ly)
+        let dupSy=lyDupFstTermSy(ly)
         let fstTermAy=ly|>ayMap fstTerm
         let msgOpt fstTerm = if fstTerm|>isInAy dupSy then Some(fmtQQ("dup(?)")[fstTerm]) else None
         fstTermAy|>ayMap msgOpt 
@@ -923,20 +943,9 @@ cc  dd"""
         let toAy(a,b) = (lisToAy a),(lisToAy b)
         a |> Seq.fold f ([],[]) |> toAy
  
-    // Ly =
-    let ly_cmbFstTerm(ly:ly):ly = 
-        let fmToBy ly = 
-            let ay = ly |> ayMap fstTerm
-            match dupFmTo ay with
-            | Some fmTo -> 
-                let by = [|""|]
-                Some(fmTo,by)
-            | None -> None
-        let rec rpl ly =
-            match (fmToBy ly) with
-            | None -> ly
-            | Some(fmTo,by) -> rpl (ayRplByFmTo by fmTo ly)
-        rpl ly
+    // BoolAy
+    let boolAyAnd boolAy = boolAy |> ayAll(fun(b:bool)->b=true)
+    let boolAyOr  boolAy = boolAy |> ayAny(fun(b:bool)->b=false)
 
     // Enm
 
@@ -944,57 +953,12 @@ cc  dd"""
     let assertIsEnm<'a> = if not isEnm<'a> then er "The {type-name} is not Enum" [typeof<'a>.Name]
     let enmAy<'a> :'a[] = [| for i in Enum.GetValues(typeof<'a>) do yield i :?> 'a|]
     let enmNy<'a> : ny =  Enum.GetNames(typeof<'a>) 
-    let private x<'a> ignoreCase s = 
+    let private x1<'a> ignoreCase s = 
         assertIsEnm<'a>
         Enum.Parse(typeof<'a>,s,ignoreCase) :?> 'a
-    let private y<'a> ignoreCase s = try Some(x<'a> ignoreCase s) with _ -> None
-    let enmParse<'a> s  = x<'a> false s
-    let enmParseI<'a> s = x<'a> true s
+    let private y<'a> ignoreCase s = try Some(x1<'a> ignoreCase s) with _ -> None
+    let enmParse<'a> s  = x1<'a> false s
+    let enmParseI<'a> s = x1<'a> true s
     let enmTryParse<'a> s  = y<'a> false s
     let enmTryParseI<'a> s = y<'a> true s
     let enmToStr<'a> = enmNy<'a> |> aySrt |> jn " | "
-
-    // Nbr 
-    let nDig = nDig
-    let runningSy = runningSy
-
-open Microsoft.VisualStudio.TestTools.UnitTesting
-[<TestClass>]
-type Seq() =
-    [<TestMethod>]
-    member x.dupFmTo() =
-        let lis=[1;2;3;4;4;4;5]
-        let act = dupFmTo lis
-        let exp = Some(3,5)
-        assert(act = exp)
-        //
-        let lis=[1;2;3;4;5;6]
-        let act = dupFmTo lis
-        let exp = None
-        assert(act = exp)
-[<TestClass>]
-type Ay() =
-    [<TestMethod>]
-    member x.ayRplByFmTo() =
-        let ay = [|1;2;3;4;5|]
-        let fmTo = 1,2
-        let by = [|9;10;11|]
-        let act = ayRplByFmTo by fmTo ay
-        let exp = [|1;9;10;11;4;5|]
-        assert(act=exp)
-[<TestClass>]
-type Term() =
-    [<TestMethod>]
-    member x.combineSamFstTerm() =
-        let ly = splitVbar "aa xyz  |aa bbccdd|aa 1234"
-        let act = ly_combineSamFstTerm ly    
-        let exp = "aa xyz bbccdd 1234"
-        assert(act=exp)
-        //
-        let ly = splitVbar "aaa xyz  |aa bbccdd|aa 1234"
-        try 
-            let act = ly_combineSamFstTerm ly
-            assert false
-        with e ->
-            assert (e.Message = "{ly} should have all same fst-term")
-            

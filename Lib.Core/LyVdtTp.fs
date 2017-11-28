@@ -89,7 +89,7 @@ module Chkr =
     let dupFstTermChkr:ly->vdtMsgs=fun(ly:ly)->(ly|>ly_dupFstTermLyMsgs),[]
 module Ly =
     let vdtMsgs(chkrLis:chkr list)(chkFstTerm:chkFstTermDup)(ly:ly):vdtMsgs =
-        let clnLy = ly|>ly_rmv3DashRmk|>syRTrim 
+        let clnLy = ly|>lyRmv3DashRmk|>syRTrim 
         let apply(chkr:chkr):VdtMsgs=VdtMsgs(chkr clnLy)
         let l =
             if chkFstTerm then 

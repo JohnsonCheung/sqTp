@@ -2,6 +2,44 @@
 open Microsoft.VisualStudio.TestTools.UnitTesting
 open Lib.Core
 [<TestClass>]
+type Seq() =
+    [<TestMethod>]
+    member x.dupFmTo() =
+        let lis=[1;2;3;4;4;4;5]
+        let act = dupFmTo lis
+        let exp = Some(3,5)
+        assert(act = exp)
+        //
+        let lis=[1;2;3;4;5;6]
+        let act = dupFmTo lis
+        let exp = None
+        assert(act = exp)
+[<TestClass>]
+type Ay() =
+    [<TestMethod>]
+    member x.ayRplByFmTo() =
+        let ay = [|1;2;3;4;5|]
+        let fmTo = 1,2
+        let by = [|9;10;11|]
+        let act = ayRplByFmTo by fmTo ay
+        let exp = [|1;9;10;11;4;5|]
+        assert(act=exp)
+[<TestClass>]
+type Term() =
+    [<TestMethod>]
+    member x.combineSamFstTerm() =
+        let ly = splitVbar "aa xyz  |aa bbccdd|aa 1234"
+        let act = lyCombineSamFstTerm ly    
+        let exp = "aa xyz bbccdd 1234"
+        assert(act=exp)
+        //
+        let ly = splitVbar "aaa xyz  |aa bbccdd|aa 1234"
+        try 
+            let act = lyCombineSamFstTerm ly
+            assert false
+        with e ->
+            assert (e.Message = "{ly} should have all same fst-term")
+[<TestClass>]
 type Core() = 
     [<TestMethod>]
     member x.fstTermDupMsgOptAy() =

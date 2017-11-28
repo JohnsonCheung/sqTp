@@ -50,7 +50,6 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
-    <Compile Include="Library1.fs" />
     <None Include="Script.fsx" />
   </ItemGroup>
   <ItemGroup>

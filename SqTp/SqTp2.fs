@@ -5,12 +5,10 @@ open Lib.LyVdt
 open Lib.Dta
 open Lib.Refl
 open Lib.LyVdt
-type sqEvlTy = NORM|DROP|SKIP
-type swDic = bdic
 type sqTpFt = ft
 type sqTpNm = nm
 type prm = sdic
-type sw = dic<bool>
+type sw = bdic
 type prmLy = ly
 type swLy = ly
 type prmLyAy = prmLy[]
@@ -46,9 +44,6 @@ type exprLin = string
 type swLgcStr = string
 //------------------------------
 /// expression terms, started with $
-type sqFmLin = sqLin
-type sqUpdLin = sqLin
-type sqIntoLin = sqLin
 type sqKey = term
 type sqRst = termLvs
 //---------------------------------
@@ -70,7 +65,13 @@ type swT1 = term
 type swT2 = term
 type swLgc = SwAndOr of andOr*swTerm[] | SwEqNe of eqNe*swT1*swT2
 type swBrk = {lin:swLin;k:swKey;lgc:swLgc option}
-
+namespace Lib.SqTp2
+[<AutoOpen>]
+module Emp =
+    open Lib.Core
+    open Lib.SqTp2.Types
+    let empSw:sw = empBdic
+    let empPrm:prm = empSdic
 namespace Lib.SqTp2
 open Lib.Core
 open Lib.Tp
@@ -140,7 +141,7 @@ type VSw(swLy:swLy,swSdic:sdic,prmSdic:sdic) =
     member x.vdtMsgs = [||],[]
 type QBk(b:bk) =
     inherit bk(b.fstLinOpt,b.ly)
-    let no3DashRmkLy_ = b.ly |> ayMap lin_rmv3DashRmk
+    let no3DashRmkLy_ = b.ly |> ayMap linRmv3DashRmk
     let isRmk = sz >> eq 0
     let isMajPfx pfx ly = 
         let c1,c2 = syPfxCnt pfx ly
@@ -149,7 +150,7 @@ type QBk(b:bk) =
     let isSw  = isMajPfx "?"
     let isSq  = fstEleDft "" >> fstTerm >> rmvPfx "?" >> isInAyI(splitLvs "drp sel seldis upd")
     let bkTy ly = ret {
-            let ly = ly |> ly_rmvRmkLin
+            let ly = ly |> lyRmvRmkLin
             if isRmk ly then return RmkBk
             if isSw  ly then return SwBk
             if isPrm ly then return PrmBk
@@ -184,7 +185,7 @@ type QBlks(tp:sqTp) =
         zClnQBkAy |> ayWh eqTy |> ayMap ly
     let fstLy ty = seqHeadDft([||])(lyAyOfTy ty)
     let zSqLyAy = lyAyOfTy SqBk
-    let zNoRmkSqLyAy = zSqLyAy |> ayMap ly_rmvRmkLin
+    let zNoRmkSqLyAy = zSqLyAy |> ayMap lyRmvRmkLin
     let zSwLy = fstLy SwBk
     let zSwLyAy = lyAyOfTy SwBk
     let zLyAy = zClnQBkAy|>ayMap(fun(b:QBk)->b.ly)
@@ -222,7 +223,7 @@ type SqTpDta(tp:sqTp) =
     let prmSdic:prmSdic = blks.prmSdic
     let swSdic:swSdic = blks.swSdic
 type Sw(swLy:swLy,isVdtEr,prm:prm) =
-    let aoT1T2_bOpt(sw:sw)(op:eqNe) t1 t2:bool option= 
+    let evlAndOrT1T2(sw:sw)(op:eqNe)(t1:term)(t2:term) :bool option= 
         let v1 =
             match fstChr t1 with
             | "?" -> dicVopt t1 sw |> optMap string
@@ -236,24 +237,23 @@ type Sw(swLy:swLy,isVdtEr,prm:prm) =
                 | _ -> Some t2
         let f = match op with | EQ -> eq | NE -> ne 
         match zipOpt v1 v2 with None -> None | Some(v1,v2) -> Some(f v1 v2) 
-    let swBrk_bOpt sw (swBrk:swBrk):bool option = 
+    let evlSwBrk(sw:sw)(swBrk:swBrk):bool option = 
         let bTerm_bOpt bTerm: bool option =
             let t = bTerm
             match fstChr t with
             | "?" -> dicVopt t sw  
             | "%" -> dicVopt t prm |> (optMap toBool)
             | _ -> er "the given {boolTerm} must have pfx-? or pfx-%" [t]
-        let bAy_evl (op:andOr) bAy: bool option =
-            let x1 f bool'Ay = if(opyAnyNone bool'Ay) then None else Some (bool'Ay |> f optVal )
-            let andF = x1 ayAll
-            let orF  = x1 ayAny
-            let f = match op with
-                    | andOr.OR  -> orF  
-                    | andOr.AND -> andF  
-            f bAy
+        let evlBoolAy (op:andOr) boolOptAy: bool option =
+            if opyHasNone boolOptAy then None else
+                let boolAy = boolOptAy |> ayMap(fun(b:bool option)->b.Value)
+                let o = match op with
+                        | andOr.OR  -> boolAyOr boolAy
+                        | andOr.AND -> boolAyAnd boolAy
+                Some o
         match swBrk.lgc with
-        | Some(SwAndOr(andOr,termAy)) -> termAy |> ayMap bTerm_bOpt |> bAy_evl andOr
-        | Some(SwEqNe(eqNe,t1,t2)) -> aoT1T2_bOpt sw eqNe t1 t2
+        | Some(SwAndOr(andOr,termAy)) -> termAy |> ayMap bTerm_bOpt |> evlBoolAy andOr
+        | Some(SwEqNe(eqNe,t1,t2)) -> evlAndOrT1T2 sw eqNe t1 t2
         | None -> None
     let swLgcStr_parse (swLgcStr:swLgcStr):swLgc option = 
         let op,t =
@@ -276,7 +276,7 @@ type Sw(swLy:swLy,isVdtEr,prm:prm) =
         let lgc = swLgcStr_parse swLgcStr
         {lin=swLin;k=k;lgc=lgc}
     let swBrkAy_sw sw swBrkAy: swBrk[]*sw*bool =
-        let b' : bool option[] = swBrkAy |> ayMap (swBrk_bOpt sw)
+        let b' : bool option[] = swBrkAy |> ayMap (evlSwBrk sw)
         let oSwBrkAy = ayWhByOnyForNone b' swBrkAy
         let oIsEvled = b' |> ayAny isSome
         let oSw =
@@ -285,8 +285,8 @@ type Sw(swLy:swLy,isVdtEr,prm:prm) =
             let oSw = kvAy |> ayFold (fun(sw:sw) kv -> sw.Add kv) sw
             oSw
         oSwBrkAy,oSw,oIsEvled
-    let zSwDic =
-        if isVdtEr then Map.empty<string,bool> else
+    let zSw:sw =
+        if isVdtEr then empSw else
             let swBrkAy = swLy |>  ayMap swLin_brk
             let rec e2 swBrkAy sw cnt:sw = 
                 let swBrkAy,sw,isEvled = swBrkAy_sw sw swBrkAy
@@ -302,65 +302,73 @@ type Sw(swLy:swLy,isVdtEr,prm:prm) =
                                 "{Sw} is switch-dictionary.  {swLy} {prm}")
                                 [lines; sw; swLy; prm]
             e2 swBrkAy (Map.empty<string,bool>) 0
-    member x.swDic = zSwDic
-type SqpCxt(ty,rst:sqRst,?exprDic:edic) =
-    let edic = if isSome exprDic then exprDic.Value else empSdic
-    do
-        if isBlankStr rst then er "{rst} cannot be blank" []
-    let t:sqTerm[] = splitLvs rst
-    let (elines,ew):exprLines[]*exprWdt =
-        if Array.isEmpty t then er "sqRst cannot be blank" []
-        let ky = t |> syAddPfx "$"
-        let elines= ky |> ayMap (keyVal edic)
-        let ew = elines |> linesAyWdt |> incr 1
-        elines,ew
-    let xsel() =
+    member x.sw = zSw
+type SqpCxt(ty,rst:sqRst,?exprDicOpt) =
+    do if isBlankStr rst then er "{rst} cannot be blank.  {ty}" [rst;ty]
+    let eDic = if isSome exprDicOpt then exprDicOpt.Value else empSdic
+    let zCxt = 
+        match ty with
+        |Jn|Left|Fm|Upd|Into -> rst
+        |Drp -> ""
+        |Wh  -> SqpCxt.xwh(rst,eDic)
+        |And -> SqpCxt.xand(rst,eDic)
+        |_   -> 
+            let t:sqTerm[] = splitLvs rst
+            let (elinesAy,ew):exprLines[]*exprWdt =
+                if Array.isEmpty t then er "sqRst cannot be blank" [] 
+                let ky = t |> syAddPfx "$"
+                let elinesAy= ky |> ayMap (keyDftVal "" eDic)
+                let ew = elinesAy |> linesAyWdt |> incr 1
+                elinesAy,ew
+            match ty with
+            | Sel | SelDis -> SqpCxt.xsel(elinesAy,ew,t)
+            | Gp ->           SqpCxt.xgp(elinesAy,ew)
+            | Set ->          SqpCxt.xset(elinesAy,ew,t)
+            | Jn | Left | Fm | Upd | Into -> erImpossible()
+            | Wh | And ->  erImpossible()
+            | Drp ->       erImpossible()
+    static member xsel(elinesAy,ew,t):sqpCxt =
         let map(term,exprLines) = linesAddSfx ew term exprLines
-        let o= elines |> ayZip (syAlignL t) |> ayMap map |> jn ",\r\n" |> linesTab "" 6
+        let o= elinesAy |> ayZip (syAlignL t) |> ayMap map |> jn ",\r\n" |> linesTab "" 6
         o
-    let xset():sqpCxt =
+    static member xset(elinesAy,ew,t):sqpCxt =
         let tw:termWdt = t |> ssWdt |> incr 3
         let map(term,exprLines) = linesTab term tw exprLines |> linesAddSfx ew ""
-        let o = elines |> ayZip (t |> syAlignL |> syAddSfx " = ") |> ayMap map |> jn ",\r\n" |> linesTab "" 6
+        let o = elinesAy |> ayZip (t |> syAlignL |> syAddSfx " = ") |> ayMap map |> jn ",\r\n" |> linesTab "" 6
         o
-    let xwh():sqpCxt = 
-        let op1,op2,rst1 = brk3Term rst
-        let o =
-            match op1.ToUpper() with 
-            | "$" -> rmvFstTerm rst
-            | "IN" ->
-                let fmt = "%s in (%s)"
-                let lis =
-                    match op2.ToUpper() with
-                    | "STR" -> splitLvs rst |> syQuote "\"" |> jnComma
-                    | "NBR" -> splitLvs rst |> jnComma
-                    | _ -> er "{op2} should be STR or NBR" [op2]
-                let f,a1,a2 = brk3Term rst1
-                sprintf "%s in (%s)" op2 rst1
-            | "BET" -> 
-                let fmt = 
-                    match op2.ToUpper() with
-                    | "STR" -> sprintf "%s between \"%s\" and \"%s\""
-                    | "NBR" -> sprintf "%s between %s and %s"
-                    | _ -> er "{op2} should be STR or NBR" [op2]
-                let f,a1,a2 = brk3Term rst
-                fmt f a1 a2
-            | "LIK" -> sprintf "%s like \"%s\"" op2 rst1
-            | _ -> er "{op2} of {rst} is invalid.  Valid op2 is IN BET LIK" [op2;rst]  
+    static member xand = SqpCxt.xwh
+    static member internal xwh(rst,eDic:edic):sqpCxt = 
+        //wh $ XXXX
+        //WH $F IN  STR $B
+        //WH $F IN  NBR $B
+        //WH $F BET STR $A $B
+        //WH $F BET NBR $A $B
+        //WH $F LIK $A
+        let f,rst1 = shiftTerm rst
+        let o = 
+            if f="$" then rst1 else
+                let op1,op2,rst2 = brk3Term rst1
+                let qq,lis =
+                    let a = "? in (?)"
+                    let b = "? between '?' and '?'"
+                    let c = "? between ? and ?"
+                    let d = "? like '?'"
+                    match op1.ToUpper(),op2.ToUpper() with 
+                    | "IN" ,"STR"-> a,[splitLvs rst |> syQuote "\"" |> jnComma]
+                    | "IN" ,"NBR"-> a,[splitLvs rst |> jnComma]
+                    | "BET","STR"-> b,[""]
+                    | "BET","NBR"-> c,[""]
+                    | "LIK", _   -> d,[""]
+                    | _ -> er "{op1} of {rst} is invalid.  Valid op1 is IN BET LIK $" [op1;rst]  
+                fmtQQ qq (f::lis)
         o
-    let xgp() = 
+    static member xgp(elines,ew):sqpCxt = 
         let o = elines |> ayMap (linesAddSfx ew "") |> jn ",\r\n"
         o
-    let zCxt =
-        match ty with
-        | Sel | SelDis -> xsel()
-        | Gp ->           xgp()
-        | Set ->          xset()
-        | Jn | Left | Fm | Upd | Into -> rst
-        | Wh | And ->     xwh()
     member x.cxt:sqpCxt = zCxt
 type SqLin(sqLin,?exprDic:edic) =
     let fst,rst = shiftTerm sqLin
+    do if fstChr fst = "?" then er "{sqLin} cannot begin with '?'" [sqLin]
     let zTy = unionParseI<sqpTy> fst
     let zPfx =
         match zTy with
@@ -375,15 +383,21 @@ type SqLin(sqLin,?exprDic:edic) =
         | Wh     -> "   Where     "
         | And    -> "   And       "
         | Into   -> "   Into      "
-        | Drp    -> "Drop Table "
-    let edic = if isSome exprDic then exprDic.Value else empSdic
-    let zCxt = SqpCxt(zTy, rst, edic).cxt
-    let zLines = zPfx + zCxt + "\r\n\r\n"
+        | Drp    -> ""
+    let zCxt =
+        if zTy = Drp then "" else
+            let edic = if isSome exprDic then exprDic.Value else empSdic
+            SqpCxt(zTy, rst, edic).cxt
+    let zLines = 
+        if zTy <> Drp then zPfx + zCxt + "\r\n\r\n" 
+        else
+            let a = "Drop Table #?\r\n"
+            rst |> splitLvs |> ayMap(rplQ a) |> jnCrLf
     member x.ty = zTy
     member x.cxt = zCxt
     member x.pfx = zPfx
-    member x.lines = zPfx + zCxt
-type NoOptTermSqLy(clnSqLy:sqLy,sw:swDic) = 
+    member x.lines = zLines
+type NoOptTermSqLy(clnSqLy:sqLy,sw:sw) = 
     let oneLin sqLin =
         let (&&&) = pAnd
         let (|||) = pOr
@@ -401,7 +415,7 @@ type NoOptTermSqLy(clnSqLy:sqLy,sw:swDic) =
             let remain = rst |> splitLvs |> ayWh(isKeep sw)
             if sz remain = 0 then er "{sqLin}'s option term are all remove.  See {sw}" [sqLin;dicFmtLy sw]
             remain |> ayMap (rmvPfx "?") |> jnSpc |> addPfx (fst + " ")
-    let o = clnSqLy |> ayMap oneLin |> ly_rmvBlankLin
+    let o = clnSqLy |> ayMap oneLin |> lyRmvBlankLin
     member x.ly = o
 type SqStmt(clnSqLy:sqLy,?prmOpt:prm,?swOpt:sw) =
     let prm = if isSome prmOpt then prmOpt.Value else empSdic
@@ -418,40 +432,31 @@ type SqStmt(clnSqLy:sqLy,?prmOpt:prm,?swOpt:sw) =
                 let tblNm = tblNmLin |> sndTerm
                 "?" + ty + tblNm
         swKey
-    let zEvlTy =
-        let isDrp() =  clnSqLy |> ayMap fstTerm |> isAllEqTo "drp"
-        let isSkip() = 
-            let lin0 = clnSqLy |> fstEleDft ""
-            if fstChr lin0 <> "?" then false else
-                if (dicVopt (swKey()) sw) = Some false then false else true 
-        seqChoose [isSkip;isDrp] [SKIP;DROP;NORM]
+    let zIsSkipEvl =
+        let lin0 = clnSqLy |> fstEleDft ""
+        if fstChr lin0 <> "?" then false else
+            if (dicVopt (swKey()) sw) = Some false then false else true 
     let zSqStmt = 
-        match zEvlTy with
-        | SKIP -> ""
-        | DROP -> 
-            let toDrpStmt tblNm = "Drop Table #" + tblNm + "\r\n"
-            clnSqLy.[0] |> splitLvs |> Array.skip 1 |> ayMap toDrpStmt |> jnCrLf
-        | NORM -> 
+        if zIsSkipEvl then "" else
             let exprLy,stmtLy = clnSqLy |> seqSplitAy (hasPfx "$")
             if Array.isEmpty stmtLy then er "{stmtLy} cannot empty ay" [clnSqLy]
             let edic = sdicByLy exprLy
             let lines sqLin = SqLin(sqLin,edic).lines 
             let lines = NoOptTermSqLy(stmtLy,sw).ly |> ayMap lines |> jnCrLf
             lines
-    member x.evlTy = zEvlTy
+    member x.isSkipEvl = zIsSkipEvl
     member x.sqStmt = zSqStmt
 type SqStmts(blks:QBlks,?isVdtErOpt) =
-    let dftF opt = if isSome opt then opt.Value else false
     let isVdtEr = dftF isVdtErOpt
-    let sqOpt_ = 
+    let zSqOpt = 
         if isVdtEr then None else
         let prm = blks.prm()
         let swLy = blks.swLy
-        let sw = Sw(swLy,isVdtEr,prm).swDic
+        let sw = Sw(swLy,isVdtEr,prm).sw
         let stmt sqLy = SqStmt(sqLy,prm,sw).sqStmt
         let sqStmts = blks.noRmkSqLyAy |> ayMap stmt |> jnCrLf
         Some(sqStmts)
-    member x.sqOpt = sqOpt_
+    member x.sqOpt = zSqOpt
 type SqTp(tp:sqTp) = 
     let zBlks = QBlks(tp)
     let zVdtTp = zBlks.vdtTp

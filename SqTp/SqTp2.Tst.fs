@@ -1,10 +1,11 @@
 ﻿#nowarn "58"
-namespace Lib.SqTp2.T
-(*
+namespace Lib.SqTp2.Tst
 open Microsoft.VisualStudio.TestTools.UnitTesting
 open Lib.SqTp2
 open Lib.SqTp2.Types
 open Lib.Core
+open Lib
+(*
 [<AutoOpen>]
 module Dta =
     let mutable dtaNo = 0
@@ -33,10 +34,50 @@ module BkAy =
     let ly() = BkAy.ly sqTpBkTy
 module SwBrkAy =
     let evl() = SwBrkAy.evl prm sw swBrkAy
-namespace Lib.SqTp.TClass
-open Microsoft.VisualStudio.TestTools.UnitTesting
-open Lib.SqTp2.Tst.Dta1
-open Lib.SqTp2.T
+*)
+[<TestClass>]
+type SqLin_Tst() =
+    [<TestMethod>]
+    member x.ty() =
+        let t lin ty =
+            let act = SqLin(lin).ty //"Drp").ty 
+            let exp = ty
+            Assert.AreEqual(exp,act)
+        t "Drp" Drp
+        t "Sel a" Sel
+        t "sel a" Sel
+        t "sel a" Sel
+        t "sEL a" Sel
+        t "upd a" Upd
+        t "seldis a" SelDis
+        t "set a" Set
+        t "fm a" Fm
+        t "gp a" Gp
+        t "wh bet1 str a b" Wh
+        t "and bet str" And
+        t "left a" Left
+        t "jn a" Jn
+[<TestClass>]
+type SqpCxt_Tst() =
+    [<TestMethod>]
+    member x.xwh() =
+        let t rst exp =
+            let act = SqpCxt.xwh(rst,empSdic)
+            Assert.AreEqual(exp,act)
+        t "lik b a%" "b like 'a%'"
+ 
+(*
+        | Set    -> "   Set       "
+        | Fm     -> "   From      "
+        | Gp     -> "   Group By  "
+        | Jn     -> "   Join      "
+        | Left   -> "   Left Join "
+        | Wh     -> "   Where     "
+        | And    -> "   And       "
+        | Into   -> "   Into      "
+        | Drp    -> ""
+*)
+(*
 [<TestClass>]type BkAy () =
     [<TestMethod>]member x.evl() = 
         let act = BkAy.evl()

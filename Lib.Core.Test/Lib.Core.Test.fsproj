@@ -68,11 +68,6 @@
       <Project>{a4e492d9-a72f-4843-99c1-cc73dee025d5}</Project>
       <Private>True</Private>
     </ProjectReference>
-    <ProjectReference Include="..\SqTp\SqTp.fsproj">
-      <Name>SqTp</Name>
-      <Project>{c94675c6-9286-42f2-8e16-068cd0e4eea8}</Project>
-      <Private>True</Private>
-    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Lib.Core.Test.fs" />
