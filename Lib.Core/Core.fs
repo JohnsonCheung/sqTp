@@ -38,9 +38,11 @@ let isSs(o:obj) = match o with :? ss -> true | _ -> false
 let isSy(o:obj) = match o with :? sy -> true | _ -> false
 let isNull(o:obj) = match o with null -> true | _ -> false
 let tyCd o = Type.GetTypeCode(o.GetType())
+let tyCdTy = Type.GetType("System.TypeCode")
+let tyCdNm o = Enum.GetName(tyCdTy,tyCd o)
 let tryTyCd o = if isNull o then None else Some(tyCd o)
-let nzF f o = if isNull o then false else f o
-let isAy(o:obj) = nzF(fun o->o.GetType().IsArray) o
+let nzFun f o = if isNull o then false else f o
+let isAy(o:obj) = nzFun(fun o->o.GetType().IsArray) o
 let isStr(o:obj) = tryTyCd o = Some(TypeCode.String)
 let isSeq(o:obj) = match o with | :? ('a seq) -> true | _ -> false
 
@@ -571,14 +573,14 @@ let keyDftVal dft dic k = dicDftVal dft k dic
 let private f1 (d:sdic) lin = dicAddKVSkipDupK(brk1Spc lin) d
 let private f2 (d:sdic) lin = dicAddKV        (brk1Spc lin) d
 let private s f (ly:ly) = ly |> Array.fold f empSdic
-let lyDupFmTo(ly:ly):fmTo=
+let lyDupFmTo(ly:ly):fmTo =
     let fmIx = 0
     let toIx = 0
     fmIx,toIx
 let fmToIsEmpty(ub:ix)(fmTo:fmTo):bool = true
-let sdicByLySkipDup:ly->sdic = s f1
-let sdicByLy       :ly->sdic = s f2
-let sdicByVbl      :vbl->sdic = splitVbar >> sdicByLy
+let sdicBySdicLySkipDup:sdicLy->sdic = s f1
+let sdicBySdicLy       :sdicLy->sdic = s f2
+let sdicBySdicVbl      :sdicVbl->sdic = splitVbar >> sdicBySdicLy
 let isSdic(o:obj) = match o with :? sdic -> true | _ -> false
 
 // Fmt
@@ -589,14 +591,12 @@ let rmvFstTerm(s:termLvs):termLvs = takAftSpcOrAll s |> ltrim
 let rmv2Terms:termLvs->termLvs = rmvFstTerm >> rmvFstTerm
 let fstTerm:termLvs->term = ltrim >> takBefSpcOrAll
 let sndTerm:termLvs->term = takAftSpcOrAll >> fstTerm
-let shiftTerm(s:termLvs):term*termLvs =(fstTerm s),(rmvFstTerm s)
+let shiftTerm(s:termLvs):term*termLvs =brk1Spc s
 let lyCombineFstTerm(ly:ly):ly = 
     let fmToBy ly = 
         let ay = ly |> ayMap fstTerm
         match dupFmTo ay with
-        | Some fmTo -> 
-            let by = [|""|]
-            Some(fmTo,by)
+        | Some fmTo -> let by = [|""|] in Some(fmTo,by)
         | None -> None
     let rec rpl ly =
         match (fmToBy ly) with
@@ -649,7 +649,7 @@ let rec lyMgeDupFstTerm ly =
     if ayIsEmpty dup then nonDup else
         let lin = dupFstTermLy_mge dup
         push lin nonDup |> lyMgeDupFstTerm
-let sdicByLyHandleDup = lyMgeDupFstTerm >> sdicByLy
+let sdicByLyHandleDup = lyMgeDupFstTerm >> sdicBySdicLySkipDup
 
 // Rmk
 let linHas2Dash:lin->bool = hasSub "--"

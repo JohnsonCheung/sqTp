@@ -8,16 +8,28 @@ open Lib.Refl
 open Lib.LyVdt
 open Lib.SqTp2.Types
 [<AutoOpen>]
+module Emp =
+    let empMsgs:msgs = []
+    let empSw:sw = empBdic
+    let empPrm:prm = empSdic
+    let empEdic:edic = empSdic
+[<AutoOpen>]
+module Const =
+    let sqFtExt = ".sql"
+    let sqTpExt = ".txt"
+    let sqTpPth:sqTpPth = @"C:\Users\user\Source\Repos\Sql3\SqTp\"
+    let dftSqTpNm = "sqTp"
+[<AutoOpen>]
 module SqWh =
                      //   f  op1  op2 a  b
-    let sqWhHlp = [   "wh $  XXXX"
-                      "wh $F IN   STR $B"
-                      "wh $F IN   NBR $B"
-                      "wh $F BET  STR $A $B"
-                      "wh $F BET  NBR $A $B"
-                      "wh $F LIK  $A"
-                  ] |> jnCrLf
-    let sqWhDta(s:whDtaStr) =
+    let sqWhHlpLines = [  "wh $  XXXX"
+                          "wh $F IN   STR $B"
+                          "wh $F IN   NBR $B"
+                          "wh $F BET  STR $A $B"
+                          "wh $F BET  NBR $A $B"
+                          "wh $F LIK  $A"
+                       ] |> jnCrLf
+    let sqWhDta(s:whDtaStr):WhDta =
         let f,a = shiftTerm s
         let op1,b = shiftTerm a
         let op2,c = shiftTerm b
@@ -32,15 +44,16 @@ module SqWh =
         | _  , "BET","STR" -> WhBetStr(f,d,e)
         | _  , "BET","NBR" -> WhBetNbr(f,d,e)
         | _  , _    , _    -> er "" []
-    let sqWhExpandDta edic whDta =
+    let sqWhExpandDta edic vdic whDta =
         let x a = keyDftVal a edic a
+        let y a = keyDftVal a vdic a
         match whDta with
-        | WhConst  a      -> WhConst (x a)
-        | WhInStr (f,lvs) -> WhInStr (x f, x lvs)
-        | WhInNbr (f,lvs) -> WhInNbr (x f, x lvs)
-        | WhBetStr(f,a,b) -> WhBetStr(x f, x a, x b)
-        | WhBetNbr(f,a,b) -> WhBetNbr(x f, x a, x b)
-        | WhLik   (f,a)   -> WhLik   (x f, x a)
+        | WhConst  a      -> WhConst (y a)
+        | WhInStr (f,lvs) -> WhInStr (x f, y lvs)
+        | WhInNbr (f,lvs) -> WhInNbr (x f, y lvs)
+        | WhBetStr(f,a,b) -> WhBetStr(x f, y a, y b)
+        | WhBetNbr(f,a,b) -> WhBetNbr(x f, y a, y b)
+        | WhLik   (f,a)   -> WhLik   (x f, y a)
     let sqWhCxt whDta:sqpCxt =
         let in_str  f lvs = fmtQQ "? in (?)"              [f;splitLvs lvs |> syQuote "'" |> jnComma]
         let in_nbr  f lvs = fmtQQ "? in (?)"              [f;splitLvs lvs |> jnComma]
@@ -58,26 +71,30 @@ module SqWh =
         o
 [<AutoOpen>]
 module VdtPrm = 
-    let prmLyChk(prmLy:ly):vdtMsgs =
-        let linMsgs lin = ret {
-            if(hasPfx "%" lin|>not) then return ["must have pfx-(%)"]
-            if(hasPfx "%?" lin) then 
-                if nTerm lin <> 2 then return ["for %?, it should have only 2 terms"]
-                let s = sndTerm lin
+    let prmLinMsgs prmLin = 
+        let l = prmLin
+        ret {
+            if(hasPfx "%" l|>not) then return ["must have pfx-(%)"]
+            let nTerm = nTerm l
+            if(hasPfx "%?" l) then 
+                if nTerm <> 2 then return ["for %?, it should have only 2 terms"]
+                let s = sndTerm l
                 if (s<>"0" && s<>"1") then return ["for %?, 2nd term must be 0 or 1"]
+            if nTerm <= 1 then return ["must have 2 or more terms"]
             return []
             }
-        let lyMsgs = prmLy |> ayMap linMsgs
+    let prmLyVdt(prmLy:prmLy):vdtMsgs =
+        let lyMsgs = prmLy |> ayMap prmLinMsgs
         lyMsgs,[]
-    let prmLyVdtMsgs prmLy = lyChk [prmLyChk] true prmLy
+    let prmLyVdtMsgs prmLy = lyVdt [prmLyVdt] true prmLy
 [<AutoOpen>]
 module VdtSql = 
-    let sqLyChk(sqLy:ly):vdtMsgs = [||],[]
-    let sqLyVdtMsgs sqLy prmSdic swSdic= lyChk [sqLyChk] false sqLy
+    let sqLyVdt(sqLy:ly):vdtMsgs = [||],[]
+    let sqLyVdtMsgs sqLy prmSdic swSdic= lyVdt [sqLyVdt] false sqLy
 [<AutoOpen>]
 module VdtSw =
-    let aoT1_chk andOrTerm1 : string option =
-        let t = andOrTerm1
+    let andOrT1Vdt andOrT1 : string option =
+        let t = andOrT1
         match fstChr t with
         | "?" | "%" -> None
         | _ -> Some(sprintf "T1-{%s} must have pfx-%s or pfx-$" t "%")
@@ -110,10 +127,10 @@ module VdtSw =
                     yield fmtQQ "Following terms must exist in {sw} or {prm}: [?]" [s]
                     return()
         }
-    let swLyChk(prmSdic:prmSdic)(swSdic:swSdic)(swLy:swLy):vdtMsgs = 
+    let swLyVdt(prmSdic:prmSdic)(swSdic:swSdic)(swLy:swLy):vdtMsgs = 
         let lyMsgs = swLy|>ayMap(swLinMsgs swSdic prmSdic)
         empVdtMsgs
-    let swLyVdtMsgs swLy prmSdic swSdic = lyChk [swLyChk prmSdic swSdic] true swLy
+    let swLyVdtMsgs swLy prmSdic swSdic = lyVdt [swLyVdt prmSdic swSdic] true swLy
 [<AutoOpen>]
 module QBk =
     let isRmk = sz >> eq 0
@@ -124,24 +141,25 @@ module QBk =
     let isSw  = isMajPfx "?"
     let isSq  = fstEleDft "" >> fstTerm >> rmvPfx "?" >> isInAyI(splitLvs "drp sel seldis upd")
     let lyQTy(ly:ly):qTy =         
+        let l = ly |> lyRmvRmkLin
         ret {
-            let ly = ly |> lyRmvRmkLin
-            if isRmk ly then return RmkBk
-            if isSw  ly then return SwBk
-            if isPrm ly then return PrmBk
-            if isSq  ly then return SqBk
+            if isRmk l then return RmkBk
+            if isSw  l then return SwBk
+            if isPrm l then return PrmBk
+            if isSq  l then return SqBk
             return ErBk
         }
 [<AutoOpen>]
 module VdtBk =
-    let private x ly = ly|>ayMap(fun _->[])
-    let qbkVdtMsgs(b:qbk)(prmSdic:prmSdic)(swSdic:swSdic) = 
+    let private x ly = ly|>ayMap(fun _->empMsgs)
+    let qbkVdtMsgs(b:qbk)(prmSdic:prmSdic)(swSdic:swSdic):vdtMsgs = 
+        let ly = b.ly
         match b.ty with
-        | PrmBk -> prmLyVdtMsgs(b.ly)
-        | SwBk  -> swLyVdtMsgs(b.ly) prmSdic prmSdic
-        | SqBk  -> sqLyVdtMsgs(b.ly) swSdic prmSdic
-        | ErBk  -> x(b.ly),["These block is error due to it is not parameter block, not switch block, not remark block and not sql block"]
-        | RmkBk -> x(b.ly),[]
+        | PrmBk -> prmLyVdtMsgs ly
+        | SwBk  -> swLyVdtMsgs ly prmSdic prmSdic
+        | SqBk  -> sqLyVdtMsgs ly swSdic prmSdic
+        | ErBk  -> x ly,["These block is error due to it is not parameter block, not switch block, not remark block and not sql block"]
+        | RmkBk -> x ly,[]
     let qbkVdtTp(prmSdic:prmSdic)(swSdic:swSdic)(b:qbk):vdtTp = 
         let vdtMsgs = qbkVdtMsgs b prmSdic swSdic
         toVdtTp(b.fstLinOpt)(b.ly)(vdtMsgs)
@@ -157,8 +175,8 @@ module QBkAy =
     let qbkAySwLyAy   = qbkAyLyAy SwBk
     let qbkAySwLy     = qbkAySwLyAy >> fstLy
     let qbkAyPrmLy    = qbkAyPrmLyAy >> fstLy 
-    let qbkAyPrmSdic  = qbkAyPrmLy >> sdicByLySkipDup
-    let qbkAySwSdic   = qbkAySwLy >> sdicByLySkipDup
+    let qbkAyPrmSdic  = qbkAyPrmLy >> sdicBySdicLySkipDup
+    let qbkAySwSdic   = qbkAySwLy >> sdicBySdicLySkipDup
     let qbkAyVdtTp(qbkAy:qbk[]) =
         let prmSdic = qbkAyPrmSdic qbkAy
         let swSdic = qbkAySwSdic qbkAy
@@ -166,40 +184,6 @@ module QBkAy =
         let isEr = true // isErAy |> ayAny pT
         let msgTp = msgTpAy |> jnCrLf
         isEr,msgTp
-(*
-type QBlks(tp:sqTp) =
-    let zBkAy = tp |> tpBkAy "==" 
-    let zLyAy = zBkAy |> ayMap(fun(b:bk)->b.ly)
-    let zTyAy = zLyAy |> ayMap lyQTy
-    let lyAyOfTy ty:ly[] = 
-        //let eqTy (b:QBk) = b.ty = ty
-        //let ly(b:QBk) = b.ly
-        //zBkAy |> ayWh eqTy |> ayMap ly
-        [|[||]|]
-    let fstLy ty = seqHeadDft([||])(lyAyOfTy ty)
-    let zSqLyAy = lyAyOfTy SqBk
-    let zNoRmkSqLyAy = zSqLyAy |> ayMap lyRmvRmkLin
-    let zSwLy = fstLy SwBk
-    let zSwLyAy = lyAyOfTy SwBk
-    let zLyAy = zBkAy|>ayMap(fun(b:bk)->b.ly)
-    let zPrmLy = fstLy PrmBk
-    let zPrmSdic = zPrmLy |> sdicByLySkipDup
-    let zSwSdic = zSwLy |> sdicByLySkipDup
-    let zVdtTp =
-        let isErAy,msgTpAy = zBkAy |> ayMap(qBkVdtTp zPrmSdic zSwSdic) |> ayUnzip
-        let isEr = isErAy |> ayAny pT
-        let msgTp = ""
-        isEr,msgTp
-    member x.isVdtEr = fst zVdtTp
-    member x.sqLyAy = zSqLyAy
-    member x.noRmkSqLyAy = zNoRmkSqLyAy
-    member x.swLy  = zSwLy
-    member x.swLyAy = zSwLyAy
-    member x.prmSdic = zPrmSdic
-    member x.prm():prm = zPrmLy |> sdicByLy
-    member x.swSdic:sdic = zSwLy |> sdicByLySkipDup
-    member x.vdtTp:vdtTp = zVdtTp
-*)
 [<AutoOpen>]
 module EvlSw =
     let evlSwT1T2(sw:sw)(prm:prm)(op:eqNe)(t1:term)(t2:term) :bool option= 
@@ -301,7 +285,7 @@ module SqLin =
         let map(term,exprLines) = linesTab term tw exprLines |> linesAddSfx ew ""
         let o = elinesAy |> ayZip (termAy |> syAlignL |> syAddSfx " = ") |> ayMap map |> jn ",\r\n" |> linesTab "" 6
         o
-    let sqLinCond rst exprdic = rst |> sqWhDta |> sqWhExpandDta exprdic |> sqWhCxt
+    let sqLinCond rst exprdic valdic = rst |> sqWhDta |> sqWhExpandDta exprdic valdic |> sqWhCxt
     let sqLinGp rst exprdic =
         let _,elinesAy,ew = x rst exprdic
         let o = elinesAy |> ayMap (linesAddSfx ew "") |> jn ",\r\n"
@@ -309,7 +293,7 @@ module SqLin =
     let sqLinTy fstTerm =
         if fstChr fstTerm = "?" then er "{sqLin-FstTerm} cannot begin with '?'" [fstTerm]
         unionParseI<sqpTy> fstTerm
-    let sqLines lin exprDic =
+    let sqLines lin exprDic valDic =
         let fst,rst = shiftTerm lin
         let ty = sqLinTy fst
         let lines =
@@ -324,29 +308,31 @@ module SqLin =
             | Jn     -> "   Join      "   + rst + "\r\n"
             | Left   -> "   Left Join "   + rst + "\r\n"
             | Into   -> "   Into      "   + rst + "\r\n"
-            | Wh     -> "   Where     "   + sqLinCond rst exprDic
-            | And    -> "   And       "   + sqLinCond rst exprDic
+            | Wh     -> "   Where     "   + sqLinCond rst exprDic valDic
+            | And    -> "   And       "   + sqLinCond rst exprDic valDic
         lines
 [<AutoOpen>]
-module SqLyNoOptTerm =
-    let private (&&&) = pAnd
-    let private (|||) = pOr
-    let private nonQ = hasPfx "?" |> pNot
-    let private oneLin sw sqLin =
+module SqStmt =
+    let sqLyRmvOptTerm(sw:sw)(clnSqLy:clnSqLy):sqLy = 
+        let (&&&) = pAnd
+        let (|||) = pOr
+        let nonQ = hasPfx "?" |> pNot
         let isKeep sw =
             let inSw = inDic sw
             let isTrue = keyVal sw >> (=) true
             inSw &&& isTrue ||| nonQ
-        let isSelGpSet = sqLin |> fstTerm |> rmvPfx "?" |> isInLisI ["sel";"seldis";"gp";"set"] // gp & set not have ?-pfx
-        if not isSelGpSet then sqLin else
+        let rmvOptTerms rstTerm =
+            let rstTermAy = rstTerm |> splitLvs |> ayWh(isKeep sw)
+            if sz rstTermAy = 0 then er "{rstTerm} are all option terms and they are all removed.  See {sw}" [rstTerm;dicFmtLy sw]
+            let rstTerm = rstTermAy |> ayMap (rmvPfx "?") |> jnSpc
+            rstTerm
+        let oneLin sqLin:lin option= // if {sqLin}-pfx is ?, the return lin may be blank
             let fst,rst = shiftTerm sqLin
-            let fst = rmvPfx "?" fst
-            let remain = rst |> splitLvs |> ayWh(isKeep sw)
-            if sz remain = 0 then er "{sqLin}'s option term are all remove.  See {sw}" [sqLin;dicFmtLy sw]
-            remain |> ayMap (rmvPfx "?") |> jnSpc |> addPfx (fst + " ")
-    let sqLyRmvOptTerm(sw:sw):clnSqLy->sqLy = ayMap(oneLin sw)>> lyRmvBlankLin
-module SqStmt =
-    let sqLySwKey(clnSqLy:sqLy):swKey = 
+            let fstTerm = rmvPfx "?" fst
+            let isOptLin = fstTerm |> isInLisI ["sel";"seldis";"gp";"set"] // gp & set not have ?-pfx
+            if isOptLin then Some(fstTerm + (rmvOptTerms rst)) else None
+        clnSqLy |> ayChoose oneLin
+    let sqLy2swKey(clnSqLy:sqLy):swKey = 
         let ty = clnSqLy |> fstEleDft "" |> fstTerm |> rmvPfx "?" |> toLower
         let tblNmLin = 
             match ty with
@@ -358,18 +344,19 @@ module SqStmt =
                 let tblNm = tblNmLin |> sndTerm
                 "?" + ty + tblNm
         o
-    let isSkipEvl(sw:sw) clnSqLy =
+    let isSkipEvl(sw:sw)(clnSqLy:clnSqLy):bool =
         let lin0 = clnSqLy |> fstEleDft ""
-        if fstChr lin0 <> "?" then false else
-            let swKey = sqLySwKey clnSqLy
-            if not(sw.ContainsKey swKey) then false else
-                sw.Item(swKey) 
-    let sqStmt(prm:prm)(sw:sw)(clnSqLy:sqLy):sqStmt =
+        let lin0fstChr = fstChr lin0
+        let lin0isQ = lin0fstChr = "?"
+        if lin0isQ then false else
+            let swKey = sqLy2swKey clnSqLy
+            (sw.ContainsKey swKey) && sw.Item(swKey) 
+    let sqStmt prm sw clnSqLy:sqStmt =
         if isSkipEvl sw clnSqLy then "" else
             let exprLy,stmtLy = clnSqLy |> seqSplitAy (hasPfx "$")
             if Array.isEmpty stmtLy then er "{stmtLy} cannot empty ay" [clnSqLy]
-            let edic = sdicByLy exprLy
-            let lines lin = sqLines lin edic 
+            let edic = sdicBySdicLy exprLy
+            let lines lin = sqLines lin edic prm
             let lines = stmtLy |> sqLyRmvOptTerm sw |> ayMap lines |> jnCrLf
             lines
 [<AutoOpen>]
@@ -384,27 +371,23 @@ module SqStmts =
             Some sqStmts
 [<AutoOpen>]
 module SqTp =
-    let empSw:sw = empBdic
-    let empPrm:prm = empSdic
-    let empEdic:edic = empSdic
     let dftEdic edicOpt = if isSome edicOpt then optVal edicOpt else empEdic
-    let sqTpQbkAy sqTp:qbk[] = [||]
+    let private mkQbk(bk:bk):qbk =
+        let fstLinOpt = bk.fstLinOpt
+        let ly = bk.ly
+        let ty = lyQTy ly
+        {fstLinOpt=fstLinOpt;ly=ly;ty=ty}
+    let sqTpQbkAy(sqTp:sqTp) = sqTp |> tpBkAy "==" |> ayMap mkQbk
     let sqTpVdt =  sqTpQbkAy >> qbkAyVdtTp
     let sqTpIsEr sqTp = sqTp |> sqTpVdt |> fst
-    let sqTpMsgTp sqTp = sqTp |> sqTpVdt |> snd
     let sqTpStmtsOpt sqTp = sqStmtsOpt(sqTpQbkAy sqTp)(sqTpIsEr sqTp)
     let sqTpEvl sqTp:runRslt =
-        let v = sqTpVdt sqTp
-        let isEr = fst v
-        let msgTp = snd v
+        let isEr,msgTp = sqTpVdt sqTp
         let tpOpt = if msgTp=sqTp && not isEr then None else Some msgTp
         let stmtsOpt = sqStmtsOpt(sqTpQbkAy sqTp) isEr
         tpOpt,stmtsOpt
 [<AutoOpen>]
 module SqTpNm =
-    let sqFtExt = ".sql"
-    let sqTpExt = ".txt"
-    let sqTpPth:sqTpPth = @"C:\Users\user\Source\Repos\Sql3\SqTp\"
     let sqTpNmSqFt nm = sqTpPth + nm + sqFtExt
     let sqTpNmTpFt nm = sqTpPth + nm + sqTpExt
     let sqTpNmEvl nm = sqTpEvl(sqTpNmTpFt nm |> ftLines)
@@ -426,16 +409,4 @@ module SqTpNm =
             let runRslt = sqTpNmRun nm 
             Saved(true,true,tpFt,sqFt)
         | ftEdtRslt.Cancel -> Cancel
-    let dftSqTpNm = "sqTp"
     let dftSqTpNmEdt() = sqTpNmEdt dftSqTpNm
-type SqTpDta(tp:sqTp) =
-    let x = sqTpQbkAy tp
-    let xswLyAy:swLy[] = qbkAySwLyAy x
-    let xswLy(i:ix):swLy = xswLyAy.[i]
-    let xprmSdic:prmSdic = qbkAyPrmSdic x
-    let xswSdic:swSdic = qbkAySwSdic x
-    member x.qbkAy = x
-    member x.swLyAy = xswLyAy
-    member x.prmSdic = xprmSdic
-    member x.swSdic = xswSdic
-    member x.swLin i (j:jx):swLin = (xswLy i).[j]

@@ -1,5 +1,26 @@
 ﻿[<AutoOpen>]
 module Lib.SqTp2.TstDta
+open Lib.SqTp2.Types
+open Lib.Core.Types
+type SqTpDta(tp:sqTp) =
+    let x = sqTpQbkAy tp
+    let xswLyAy:swLy[] = qbkAySwLyAy x
+    let xswLy:swLy = qbkAySwLy x
+    let xprmLyAy:prmLy[] = qbkAyPrmLyAy x
+    let xprmLy:prmLy = qbkAyPrmLy x
+    let xprmSdic:prmSdic = qbkAyPrmSdic x
+    let xprm:prm = qbkAyPrmSdic x
+    let xswSdic:swSdic = qbkAySwSdic x
+    let xsw:sw = evlSw xprm xswLy
+    member x.qbkAy = x
+    member x.swLyAy = xswLyAy
+    member x.swLy = xswLy
+    member x.prmLyAy = xprmLyAy
+    member x.prmLy = xprmLy
+    member x.prmSdic = xprmSdic
+    member x.swSdic = xswSdic
+    member x.swLin i (j:jx):swLin = xswLyAy.[i].[j]
+    member x.prmLin i (j:jx):swLin = xprmLyAy.[i].[j]
 let SampleSqTp = """
 -- Rmk: -- is remark
 -- %XX: is prmDicLin
@@ -133,3 +154,4 @@ $Qty    Sum(Qty)
 $Amt    Sum(Amt)
 ============================================
 """
+let sampleSqTpDta = SqTpDta(SampleSqTp)

@@ -50,6 +50,7 @@ let vdtMsgsAdd(a:vdtMsgs)(b:vdtMsgs) =
     lm,em
 let isEmpVdtMsgs(a:vdtMsgs) = isEmpLyMsgs(fst a) || lisIsEmpty(snd a)
 let isErVdtMsgs  = isEmpVdtMsgs >> not
+let isErVdtMsgsLis = List.exists isErVdtMsgs
 let fmtVdtMsgs(ly:ly)(a:vdtMsgs):lines =
     if isEmpVdtMsgs a then ly |> jnCrLf else
         let lm,em = a
@@ -83,13 +84,11 @@ let toVdtTp fstLinOpt (ly:ly)(a:vdtMsgs):vdtTp =
     if true then failwith ""
     vdtTp
     true,msgTp
-let lyChk(chkrLis:chkr list)(isChkFstTerm:isChkFstTermDup)(ly:ly):isEr*tpOpt =
+let lyVdt(chkrLis:chkr list)(isChkFstTerm:isChkFstTermDup)(ly:ly):vdtMsgs =
     let clnLy = ly|>lyRmv3DashRmk|>syRTrim 
-    let apply chk=chk clnLy
-    let dupChkr =
-        if isChkFstTerm then 
-            [fun(ly:ly)->(ly|>lyDupFstTermLyMsgs),[]]
-        else 
-            List.empty<chkr>
-    let vm = dupChkr@chkrLis |> lisMap apply |> lisFold vdtMsgsAdd empVdtMsgs
-    
+    let apply chk = chk clnLy
+    let mutable dupChkr = List.empty<chkr>
+    if isChkFstTerm then dupChkr <- [fun(ly:ly)->(ly|>lyDupFstTermLyMsgs),[]]
+    let vmLis = dupChkr@chkrLis |> lisMap apply
+    let vm = vmLis |> lisFold vdtMsgsAdd empVdtMsgs 
+    vm

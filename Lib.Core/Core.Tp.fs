@@ -28,5 +28,5 @@ let toLyLis linPfx tpLy =
     let o,curLis = tpLy |> ayFold f ([],[]) 
     o @ [curLis] |> lisWh (List.isEmpty|>pNot)
                     |> lisMap(List.toArray) 
-let tpBkAy linPfx = splitCrLf >> toLyLis linPfx >> lisMap (toBk linPfx) >> lisToAy
+let tpBkAy(linPfx:pfx):tp->bk[] = splitCrLf >> toLyLis linPfx >> lisMap (toBk linPfx) >> lisToAy
 let tpFtBkAy linPfx = ftLines >> tpBkAy linPfx

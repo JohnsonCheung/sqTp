@@ -19,6 +19,16 @@ type SqWh() =
         t "f bet str a b" (WhBetStr("f","a","b"))
         t "f bet nbr a b" (WhBetNbr("f","a","b"))
         t "f lik     a b" (WhLik   ("f","a b"))
+    [<TestMethod>]
+    member x.sqWhDtaExpand() =
+        let edic = sdicBySdicVbl("$e fld1")
+        let vdic = sdicBySdicVbl("$e fld1")
+        let t whDta exp =
+            let act = sqWhExpandDta edic vdic whDta 
+            let r = exp=act
+            Assert.IsTrue(r)
+        t (WhDta.WhConst "abc") (WhDta.WhConst "abc")
+        t (WhDta.WhBetNbr("$e","1","1")) (WhDta.WhBetNbr("fld1","1","1"))
 [<TestClass>]
 type SqLin() =
     [<TestMethod>]
