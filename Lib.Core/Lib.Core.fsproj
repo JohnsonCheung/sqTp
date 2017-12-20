@@ -51,15 +51,17 @@
   </Choose>
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
+    <Content Include="App.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Compile Include="Core.Types.fs" />
+    <Compile Include="Core.Builder.fs" />
     <Compile Include="Core.fs" />
-    <Compile Include="Tp.fs" />
+    <Compile Include="Core.Tp.fs" />
     <Compile Include="LyVdtTp.fs" />
     <Compile Include="Dta.fs" />
     <Compile Include="Refl.fs" />
     <None Include="Script.fsx" />
-    <Content Include="App.config">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
     <Compile Include="main..fs" />
   </ItemGroup>
   <ItemGroup>

@@ -2,7 +2,7 @@
 open Microsoft.VisualStudio.TestTools.UnitTesting
 open Lib.Core
 [<TestClass>]
-type Seq() =
+type Core() =
     [<TestMethod>]
     member x.dupFmTo() =
         let lis=[1;2;3;4;4;4;5]
@@ -14,8 +14,6 @@ type Seq() =
         let act = dupFmTo lis
         let exp = None
         assert(act = exp)
-[<TestClass>]
-type Ay() =
     [<TestMethod>]
     member x.ayRplByFmTo() =
         let ay = [|1;2;3;4;5|]
@@ -24,10 +22,27 @@ type Ay() =
         let act = ayRplByFmTo by fmTo ay
         let exp = [|1;9;10;11;4;5|]
         assert(act=exp)
-[<TestClass>]
-type Term() =
     [<TestMethod>]
-    member x.combineSamFstTerm() =
+    member x.brkNTerm() =
+        let t n s exp =
+            let act = brkNTerm n s
+            let t = exp=act
+            Assert.IsTrue(t)
+        t 2 "aa bb"          [|"aa";"bb"   |]
+        t 2 "aa bb cc"       [|"aa";"bb cc"|]
+        t 3 "aa bb"          [|"aa";"bb";""     |]
+        t 3 "aa bb cc"       [|"aa";"bb";"cc"   |]
+        t 3 "aa bb cc dd"    [|"aa";"bb";"cc dd"|]
+        t 4 "aa bb cc"       [|"aa";"bb";"cc";""     |]
+        t 4 "aa bb cc dd"    [|"aa";"bb";"cc";"dd"   |]
+        t 4 "aa bb cc dd ee" [|"aa";"bb";"cc";"dd ee"|]
+        t 5 "aa bb cc"          [|"aa";"bb";"cc";""  ;""     |]
+        t 5 "aa bb cc dd"       [|"aa";"bb";"cc";"dd";""     |]
+        t 5 "aa bb cc dd"       [|"aa";"bb";"cc";"dd";""     |]
+        t 5 "aa bb cc dd ee"    [|"aa";"bb";"cc";"dd";"ee"   |]
+        t 5 "aa bb cc dd ee ff" [|"aa";"bb";"cc";"dd";"ee ff"|]
+    [<TestMethod>]
+    member x.lyCombineSamFstTerm() =
         let ly = splitVbar "aa xyz  |aa bbccdd|aa 1234"
         let act = lyCombineSamFstTerm ly    
         let exp = "aa xyz bbccdd 1234"
@@ -39,8 +54,11 @@ type Term() =
             assert false
         with e ->
             assert (e.Message = "{ly} should have all same fst-term")
-[<TestClass>]
-type Core() = 
+    [<TestMethod>]
+    member x.quoteSng() =
+        let act = quoteSng "s"
+        let exp = "'s'"
+        Assert.AreEqual(exp,act)
     [<TestMethod>]
     member x.fstTermDupMsgOptAy() =
         let s = Some "dup(a)"
@@ -54,13 +72,12 @@ type Core() =
                     |])
         let d2 = (2,[|Some("dup()");Some("dup()");Some("dup()")|],[|"";"";""|])
         let tstr(case,exp,ly) =
-            let run() = ly_dupFstTermMsgOptAy ly
+            let run() = lyDupFstTermMsgOptAy ly
             let act = run()
             let r = act = exp
             if not r then erLines "{case} {ly} {Act} {Exp}" [case;ly;act;exp] |> prt
             Assert.IsTrue r
         [d0;d1;d2] |> List.iter tstr
-
     [<TestMethod>]
     member x.erLines() =
 //------------------------------------------

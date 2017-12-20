@@ -5,42 +5,26 @@ open Lib.SqTp2
 open Lib.SqTp2.Types
 open Lib.Core
 open Lib
-(*
-[<AutoOpen>]
-module Dta =
-    let mutable dtaNo = 0
-    let mutable sqTpBkTy = SqBk
-    let mutable sqTp = SqTp(aSqTp)
-    let mutable blks = Tp.bkAy aSqTp
-    let mutable prm = BkAy.prm bkAy
-    let mutable swSdic = BkAy.sw bkAy
-    let mutable swLy = BkAy.swLy bkAy
-    let mutable sw = SwLy.evl prm swLy
-    let mutable swBrkAy = swLy |> ayMap SwLin.brk 
-    let mutable empSw = empSw
-    let mutable andOrTerm1 = "aa"
-    let mutable tpLy = aSqTp |> splitCrLf
-module Lin =
-    let isSq() = 
-        let x lin =
-            let isSq = if Lin.isSq lin then "true" else ""
-            sprintf "%6s %s" isSq lin
-        tpLy |> ayMap x |> brwSy
-module AndOrTerm1 =
-    let evl() = AndOrTerm1.evl prm sw andOrTerm1
-    let chk() = AndOrTerm1.chk  prm sw andOrTerm1 
-module BkAy =
-    let evl() = BkAy.evl bkAy
-    let ly() = BkAy.ly sqTpBkTy
-module SwBrkAy =
-    let evl() = SwBrkAy.evl prm sw swBrkAy
-*)
 [<TestClass>]
-type SqLin_Tst() =
+type SqWh() =
+    [<TestMethod>]
+    member x.whDta() =
+        let t whDtaStr exp =
+            let act = sqWhDta whDtaStr
+            let r = exp=act
+            Assert.IsTrue(r)
+        t "$ aa"          (WhConst ("aa"))
+        t "f in  str a b" (WhInStr ("f","a b"))
+        t "f in  nbr a b" (WhInNbr ("f","a b"))
+        t "f bet str a b" (WhBetStr("f","a","b"))
+        t "f bet nbr a b" (WhBetNbr("f","a","b"))
+        t "f lik     a b" (WhLik   ("f","a b"))
+[<TestClass>]
+type SqLin() =
     [<TestMethod>]
     member x.ty() =
         let t lin ty =
-            let act = SqLin(lin).ty //"Drp").ty 
+            let act = sqLinTy lin //"Drp").ty 
             let exp = ty
             Assert.AreEqual(exp,act)
         t "Drp" Drp
@@ -57,26 +41,28 @@ type SqLin_Tst() =
         t "and bet str" And
         t "left a" Left
         t "jn a" Jn
-[<TestClass>]
-type SqpCxt_Tst() =
     [<TestMethod>]
-    member x.xwh() =
-        let t rst exp =
-            let act = SqpCxt.xwh(rst,empSdic)
+    member x.sqLines() =
+        let edic = empSdic
+        let t lin exp=
+            let act = sqLines lin edic
             Assert.AreEqual(exp,act)
-        t "lik b a%" "b like 'a%'"
- 
-(*
-        | Set    -> "   Set       "
-        | Fm     -> "   From      "
-        | Gp     -> "   Group By  "
-        | Jn     -> "   Join      "
-        | Left   -> "   Left Join "
-        | Wh     -> "   Where     "
-        | And    -> "   And       "
-        | Into   -> "   Into      "
-        | Drp    -> ""
-*)
+        t "sel    a b c"    ""
+        t "seldis a b c"    ""
+        t "upd    a b c"    ""
+        t "set    a b c"    ""
+        t "fm     a b c"    ""
+        t "gp     a b c"    ""
+        t "wh     a b c"    ""
+        t "and    a b c"    ""
+        t "left   a b c"    ""
+        t "jn     a b c"    ""
+        t "wh b lik a%"          "where b like 'a%'"
+        t "wh $ a>100"           "where a>100"
+        t "wh f in  str 1 2 3 4" "where f in ('1','2','3','4')"
+        t "wh f in  nbr 1 2 3 4" "where f in (1,2,3,4)"
+        t "wh f bet nbr 1 2"     "where f between 1 and 2"
+        t "wh f bet str 1 2"     "where f between '1' and '2'"
 (*
 [<TestClass>]type BkAy () =
     [<TestMethod>]member x.evl() = 
@@ -233,3 +219,14 @@ module main =
         //SwLinChk().``Term_MustExist_in_Prm_or_Sw``()
         0
 *)
+module main =
+    let aa b =
+        let a = 1
+        let b = 2
+        let c = 3
+        ()
+    [<EntryPoint>]
+    let main args =
+        aa()
+        aa()
+        0

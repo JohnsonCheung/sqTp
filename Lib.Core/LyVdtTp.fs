@@ -1,66 +1,66 @@
-﻿namespace Lib.LyVdt
+﻿[<AutoOpen>]
+module Lib.LyVdt
 open Lib.Core
+open Lib.Core.Types
 type msgs = msg list
 type linMsgs = lin*msgs
 type endMsgs = msgs
-type chkFstTermDup = bool
+type isChkFstTermDup = bool
 type tp = lines
+type tpOpt = tp option
 type msgLy = ly
 type linWdt = wdt
 type msgTp = tp
 type vdtTp = isEr * msgTp
 type lyMsgs = msgs[]
-type vdtMsgs = lyMsgs*endMsgs
+type vdtMsgs = lyMsgs*endMsgs 
 type chkr = ly -> vdtMsgs
-type LyMsgs(lyMsgs:lyMsgs) =
-    let zLinCnt = sz lyMsgs
-    let zIsEmpty = zLinCnt = 0 || (lyMsgs |> ayAny lisIsEmpty)
-    member x.linCnt = zLinCnt
-    member x.isEmpty = zIsEmpty
-    member x.lyMsgs = lyMsgs
-    static member empty:LyMsgs = LyMsgs([||])
-    static member (+)(a:LyMsgs,b:LyMsgs):LyMsgs =
-        if a.linCnt <> b.linCnt then er "{sz1} <> {sz2}, cannot add" [a.linCnt;b.linCnt]
-        let lyMsgs = a.lyMsgs |> ayZip b.lyMsgs |> ayMap (fun(a:msgs,b:msgs)->a@b)
-        LyMsgs(lyMsgs)
-module LinMsgs =
-    let lines(w:linWdt)(linMsgs:linMsgs):lines = 
-        let lin,msgs = linMsgs
-        if lisIsEmpty msgs then lin else
-            let lin0 = 
-                let msg0 = List.head msgs
-                ( alignL w lin ) + msg0
-            let linRst = 
-                let linesRst = List.tail msgs |> jnCrLf
-                linesTab "" w linesRst
-            let o = lin0 + linRst
-            o
-type VdtMsgs(vdtMsgs:vdtMsgs) =
-    inherit LyMsgs(fst vdtMsgs)
-    let zLyMsgs,zEndMsgs = vdtMsgs
-    let zIsEmpty = base.isEmpty && lisIsEmpty zEndMsgs
-    let zIsEr = not(base.isEmpty || (lisIsEmpty zEndMsgs))
-    static member (+)(a:VdtMsgs,b:VdtMsgs):VdtMsgs =
-        let lm1,em1 = a.vdtMsgs
-        let lm2,em2 = b.vdtMsgs
-        let lm,em = 
-            match a.isEmpty , b.isEmpty with
-            | true,_ -> lm2,em2
-            | _,true -> lm1,em1
-            | _,_ ->
-                let lm = ((a:>LyMsgs) + (b:>LyMsgs)).lyMsgs
-                let em = em1 @ em2
-                lm,em
-        VdtMsgs(lm,em)
-    static member empty:VdtMsgs = VdtMsgs(VdtMsgs.empVdtMsgs)
-    static member empVdtMsgs:vdtMsgs = [||],[]
-    member x.vdtMsgs = vdtMsgs
-    member x.vdtTp fstLinOpt (ly:ly): vdtTp = 
-        let fstLin = if isSome fstLinOpt then fstLinOpt.Value + "\r\n" else ""
-        let msgTp = fstLin + x.lines ly 
-        let vdtTp = zIsEr,msgTp
-        vdtTp
-    member x.msgsTp(ly):msgTp =
+let internal fmtLinMsgs(w:linWdt)(linMsgs:linMsgs):lines = 
+    let lin,msgs = linMsgs
+    if lisIsEmpty msgs then lin else
+        let lin0 = 
+            let msg0 = List.head msgs
+            ( alignL w lin ) + msg0
+        let linRst = 
+            let linesRst = List.tail msgs |> jnCrLf
+            linesTab "" w linesRst
+        let o = lin0 + linRst
+        o
+let empVdtMsgs:vdtMsgs = [||],[]
+let empChkr:chkr = fun(ly:ly)->empVdtMsgs
+let dupFstTermChkr(ly:ly):vdtMsgs=(ly|>lyDupFstTermLyMsgs),[]
+let isEmpLyMsgs(a:lyMsgs) = sz a = 0 || (a |> ayAny lisIsEmpty)
+let lyMsgsAdd(a:lyMsgs)(b:lyMsgs) =
+    let ca = sz a 
+    let cb = sz b 
+    if ca<>cb then er "{sz1} <> {sz2}, cannot add" [ca;cb]
+    let o = a |> ayZip b |> ayMap (fun(a:msgs,b:msgs)->a@b)
+    o
+let vdtMsgsAdd(a:vdtMsgs)(b:vdtMsgs) =
+    let lm1,em1 = a
+    let lm2,em2 = b
+    let lm,em = 
+        match isEmpLyMsgs lm1, isEmpLyMsgs lm2 with
+        | true,_ -> lm2,em2
+        | _,true -> lm1,em1
+        | _,_ ->
+            let lm = lyMsgsAdd lm1 lm2
+            let em = em1 @ em2
+            lm,em
+    lm,em
+let isEmpVdtMsgs(a:vdtMsgs) = isEmpLyMsgs(fst a) || lisIsEmpty(snd a)
+let isErVdtMsgs  = isEmpVdtMsgs >> not
+let fmtVdtMsgs(ly:ly)(a:vdtMsgs):lines =
+    if isEmpVdtMsgs a then ly |> jnCrLf else
+        let lm,em = a
+        let linMsgsAy:linMsgs[] = ayZip ly lm
+        let w = ssWdt ly + 1
+        let lines = linMsgsAy|>ayMap(fmtLinMsgs w) |>jnCrLf
+        let endLines = em |> lisToAy |> syAddPfx "--- " |> jnCrLf
+        let pfx = if endLines = "" then "\r\n" else ""
+        lines + pfx + endLines
+let toVdtTp fstLinOpt (ly:ly)(a:vdtMsgs):vdtTp =
+    let vdtMsgsTp(ly:ly)(a:vdtMsgs):vdtTp =
         let w = ssWdt ly
         let toLines(msgs:msgs,lin) = 
             if lisIsEmpty msgs then lin else
@@ -72,32 +72,24 @@ type VdtMsgs(vdtMsgs:vdtMsgs) =
                     linesTab "" w linesRst
                 let o = lin0 + linRst
                 o
-        let msgTp = (ly|>ayZip zLyMsgs|> ayMap toLines|>ayToLis)@zEndMsgs|>jnCrLf
-        msgTp
-    member x.isEr = zIsEr
-    member x.isEmpty = zIsEmpty
-    member x.lines(ly:ly):lines =
-        if zIsEmpty then ly |> jnCrLf else
-            let linMsgsAy:linMsgs[] = ayZip ly zLyMsgs
-            let w = ssWdt ly + 1
-            let lines = linMsgsAy|>ayMap(LinMsgs.lines w) |>jnCrLf
-            let endLines = zEndMsgs |> lisToAy |> syAddPfx "--- " |> jnCrLf
-            let lines = if endLines="" then lines else lines+"\r\n"+endLines
-            lines
-module Chkr =
-    let empty:chkr = fun(ly:ly)->VdtMsgs.empty.vdtMsgs
-    let dupFstTermChkr:ly->vdtMsgs=fun(ly:ly)->(ly|>ly_dupFstTermLyMsgs),[]
-module Ly =
-    let vdtMsgs(chkrLis:chkr list)(chkFstTerm:chkFstTermDup)(ly:ly):vdtMsgs =
-        let clnLy = ly|>lyRmv3DashRmk|>syRTrim 
-        let apply(chkr:chkr):VdtMsgs=VdtMsgs(chkr clnLy)
-        let l =
-            if chkFstTerm then 
-                let mkChkr:chkr=fun(ly:ly)->(ly|>ly_dupFstTermLyMsgs),[]
-                mkChkr::chkrLis
-            else
-                chkrLis
-        let vm = 
-            let add a b = VdtMsgs.(+)(a,b)
-            l |> lisMap apply |> lisFold add (VdtMsgs.empty)
-        vm.vdtMsgs
+        let lm,em = a
+        let msgTp = (ly|>ayZip lm|> ayMap toLines|>ayToLis)@em|>jnCrLf
+        //msgTp
+        true,""
+    let fstLin = if isSome fstLinOpt then fstLinOpt.Value + "\r\n" else ""
+    let msgTp = fstLin + (fmtVdtMsgs ly a) 
+    let isEr = isErVdtMsgs a
+    let vdtTp = isEr,msgTp
+    if true then failwith ""
+    vdtTp
+    true,msgTp
+let lyChk(chkrLis:chkr list)(isChkFstTerm:isChkFstTermDup)(ly:ly):isEr*tpOpt =
+    let clnLy = ly|>lyRmv3DashRmk|>syRTrim 
+    let apply chk=chk clnLy
+    let dupChkr =
+        if isChkFstTerm then 
+            [fun(ly:ly)->(ly|>lyDupFstTermLyMsgs),[]]
+        else 
+            List.empty<chkr>
+    let vm = dupChkr@chkrLis |> lisMap apply |> lisFold vdtMsgsAdd empVdtMsgs
+    

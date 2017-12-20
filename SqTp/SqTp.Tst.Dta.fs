@@ -1,6 +1,6 @@
 ﻿[<AutoOpen>]
-module Lib.SqTp.Tst.Dta1
-let aSqTp = """
+module Lib.SqTp2.TstDta
+let SampleSqTp = """
 -- Rmk: -- is remark
 -- %XX: is prmDicLin
 -- %?XX: is switchPrm, it value must be 0 or 1

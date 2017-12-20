@@ -13,6 +13,7 @@
     <TargetFSharpCoreVersion>4.4.1.0</TargetFSharpCoreVersion>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Name>SqTp</Name>
+    <TargetFrameworkProfile />
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -51,19 +52,27 @@
   <Import Project="$(FSharpTargetsPath)" />
   <ItemGroup>
     <Compile Include="SqTp_a.fs" />
-    <Compile Include="SqTp.Tst.Dta.fs" />
+    <Content Include="App.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="SqTp.txt" />
     <Compile Include="File2.fsi" />
     <Compile Include="File2.fs" />
+    <Compile Include="SqTp3.Types.fs" />
     <Compile Include="SqTp3.fs" />
     <Content Include="Copy of SqTp.txt" />
-    <Compile Include="SqTp3.Types.fs" />
+    <Compile Include="SqTp2.Types.fs" />
     <Compile Include="SqTp2.fs" />
     <Compile Include="SqTp1.fs" />
     <Compile Include="SqTp.fs" />
+    <Compile Include="SqTp.Tst.Dta.fs" />
     <Compile Include="SqTp2.Tst.fs" />
+    <None Include="SqTp.bat" />
   </ItemGroup>
   <ItemGroup>
+    <Reference Include="Lib.Core">
+      <HintPath>..\Lib.Core\bin\Debug\Lib.Core.exe</HintPath>
+    </Reference>
     <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="Microsoft.VisualBasic.Compatibility" />
     <Reference Include="Microsoft.VisualStudio.QualityTools.UnitTestFramework">
@@ -75,13 +84,7 @@
       <AssemblyName>FSharp.Core.dll</AssemblyName>
       <HintPath>$(MSBuildProgramFiles32)\Reference Assemblies\Microsoft\FSharp\.NETFramework\v4.0\$(TargetFSharpCoreVersion)\FSharp.Core.dll</HintPath>
     </Reference>
-    <Reference Include="System" />
     <Reference Include="System.Core" />
-    <ProjectReference Include="..\Lib.Core\Lib.Core.fsproj">
-      <Name>Lib.Core</Name>
-      <Project>{a4e492d9-a72f-4843-99c1-cc73dee025d5}</Project>
-      <Private>True</Private>
-    </ProjectReference>
   </ItemGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

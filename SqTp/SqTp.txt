@@ -5,8 +5,8 @@
 -- SwitchLin: is ?XXX [OR|AND|EQ|NE] [SwPrm_OR_AND|SwPrm_EQ_NE]
 -- SwPrm_OR_AND: SwTerm ..
 -- SwPrm_EQ_NE:  SwEQ_NE_T1 SwEQ_NE_T2
--- SwEQ_NE_T1:
--- SwEQ_NE_T2:
+-- SwEQ_NE_T1: 
+-- SwEQ_NE_T2: 
 -- SwTerm:     ?XX|%?XX     -- if %?XX, its value only 1 or 0 is allowed
 -- Only one gp of %XX:
 -- Only one gp of ?XX:
@@ -51,13 +51,13 @@ Drp Tx TxMbr MbrDta Div Sto Crd Cnt Oup MbrWs
 ?sel#Sto NE %LisSto *blank
 ?sel#Crd NE %LisCrd *blank
 ============================================= #Tx
-sel  ?Crd ?MbrÂ ?Div ?Sto ?Y ?M ?W ?WD ?D ?Dte Amt Qty Cnt
+sel  ?Crd ?Mbr ?Div ?Sto ?Y ?M ?W ?WD ?D ?Dte Amt Qty Cnt 
 into #Tx
 fm   SalesHistory
-wh bet str     %%DteFm %%DteTo
-?and in str Div %LisDiv
-?and in str Sto %LisSto
-?and in str Crd %LisCrd
+whBetStr     %%DteFm %%DteTo
+?and In Str Div %LisDiv
+?and In Str Sto %LisSto
+?and In Nbr Crd %LisCrd
 ?gp ?Crd ?Mbr ?Div ?Sto ?Crd ?Y ?M ?W ?WD ?D ?Dte
 $Crd %CrdExpr
 $Mbr JCMCode
@@ -68,14 +68,13 @@ $W
 $WD
 $D
 $Dte
-$Amt Sum(SHAmount)
+Amt Sum(SHAmount)
 $Qty Sum(SHQty)
 $Cnt Count(SHInvoice+SHSDate+SHRef)
 ============================================= #TxMbr
 selDis  Mbr
 fm      #Tx
 into    #TxMbr
-$Mbr JCMCode
 ============================================= #MbrDta
 sel   Mbr Age Sex Sts Dist Area
 fm    #TxMbr x
@@ -91,7 +90,7 @@ $Area a.JCMArea
 ?sel Div DivNm DivSeq DivSts
 fm   Division
 into #Div
-?wh in strLis Div %LisDiv
+?whInStrLis Div %LisDiv
 $Div Dept + Division
 $DivNm LongDies
 $DivSeq Seq
@@ -100,7 +99,7 @@ $DivSts Status
 ?sel Sto StoNm StoCNm
 fm   Location
 into #Sto
-?wh in strLis Loc %LisLoc
+?whInStrLis Loc %LisLoc
 $Sto
 $StoNm
 $StoCNm
@@ -108,7 +107,7 @@ $StoCNm
 ?sel        Crd CrdNm
 fm          Location
 into        #Crd
-?wh in nbr Crd %LisCrd
+?wh In Nbr  Crd %LisCrd
 $Crd
 $CrdNm
 ============================================= #Oup
@@ -119,26 +118,15 @@ left #Crd a on x.Crd = a.Crd
 left #Div b on x.Div = b.Div
 left #Sto c on x.Sto = c.Sto
 left #MbrDta d on x.Mbr = d.Mbr
-wh $  JCMCode in (Select Mbr From #TxMbr)
-$Crd %CrdExpr
-$Mbr JCMCode
-$Sto
-$Y
-$M
-$W
-$WD
-$D
-$Dte
-$Amt Sum(SHAmount)
-$Qty Sum(SHQty)
-$Cnt Count(SHInvoice+SHSDate+SHRef)
+wh   JCMCode in (Select Mbr From #TxMbr)
 ============================================ #Cnt
 sel ?MbrCnt RecCnt TxCnt Qty Amt
 into #Cnt
 fm  #Tx
-$MbrCntÂ Count(Distinct Mbr)
+$MbrCnt Count(Distinct Mbr)
 $RecCnt Count(*)
 $TxCnt  Sum(TxCnt)
 $Qty    Sum(Qty)
 $Amt    Sum(Amt)
 ============================================
+
